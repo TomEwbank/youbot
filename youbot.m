@@ -1,4 +1,4 @@
-function mapTest = youbot()
+function cloud = youbot()
 % youbot Illustrates the V-REP Matlab bindings.
 
 % (C) Copyright Renaud Detry 2013.
@@ -188,7 +188,9 @@ function mapTest = youbot()
    pts = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait);
    % Each column of pts has [x;y;z;distancetosensor]
    % Here, we only keep points within 1 meter, to focus on the table
+   cloud = pts;
    pts = pts(1:3,pts(4,:)<1);
+   
    subplot(223)
    plot3(pts(1,:), pts(2,:), pts(3,:), '*');
    axis equal;

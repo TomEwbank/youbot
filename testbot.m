@@ -55,7 +55,7 @@ function testbot()
    startingJoints = [pi,30.91*pi/180,52.42*pi/180,0*pi/180,0];
    
    % In this demo, we move the arm to a preset pose:
-   pickupJoints = [180*pi/180, 20*pi/180, 113*pi/180, -41*pi/180, 0*pi/180];
+   pickupJoints = [180*pi/180, 0.5390, 0.9146, 1.2684, 0*pi/180];
    
    % Tilt of the Rectangle22 box
    r22tilt = -44.56/180*pi;
@@ -69,14 +69,13 @@ function testbot()
    disp('Starting robot');
    
    % Set the arm to its starting configuration:
-   res = vrep.simxPauseCommunication(id, true); vrchk(vrep, res);
+   %res = vrep.simxPauseCommunication(id, true); vrchk(vrep, res);
    for i = 1:5,
-   res = vrep.simxSetJointTargetPosition(id, h.armJoints(i),...
-                                         pickupJoints(i),...
-                                         vrep.simx_opmode_oneshot);
-   vrchk(vrep, res, true);
+   [res, j] = vrep.simxGetJointPosition(id, h.armJoints(i), vrep.simx_opmode_oneshot_wait);
+        vrchk(vrep, res, true);
+        j
    end
-   res = vrep.simxPauseCommunication(id, false); vrchk(vrep, res);
+   %res = vrep.simxPauseCommunication(id, false); vrchk(vrep, res);
    
    plotData = true;
    if plotData,
@@ -100,6 +99,7 @@ function testbot()
    fsm = 'rotate';
    
   a = false;
+  b = false;
   while true,
    tic
    if vrep.simxGetConnectionId(id) == -1,
@@ -118,7 +118,7 @@ function testbot()
                                                      vrep.simx_opmode_buffer);
    vrchk(vrep, res, true);
    
-   tipEuler
+   %tipEuler
    
    
    
@@ -156,9 +156,17 @@ function testbot()
         a = false;
    end 
    
+   if b
+    forwBackVel = -5
+     vrep.simxSetIntegerSignal(id, 'gripper_open', 0, vrep.simx_opmode_oneshot);
+        vrchk(vrep, res, true);
+        pause(2);
+        b = false
+   end
    
-
-   
+   vrep.simxSetObjectOrientation(id, h.rgbdCasing, h.ref,...
+                                 [0 0 pi/6], vrep.simx_opmode_oneshot);
+   pause(10);
    % Update wheel velocities
    res = vrep.simxPauseCommunication(id, true); vrchk(vrep, res);
    vrep.simxSetJointTargetVelocity(id, h.wheelJoints(1),...

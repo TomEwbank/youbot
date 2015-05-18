@@ -49,6 +49,11 @@ d_table = 0.8;
 h_table = 0.185;
 d_basket = d_table;
 h_basket = 0.185;
+cam_angle = pi/7;
+
+[res, rgbdPos] = vrep.simxGetObjectPosition(id, h.rgbdCasing, h.ref,...
+                    vrep.simx_opmode_oneshot_wait);
+vrchk(vrep, res, true);
 
 
 % Min max angles for all joints:
@@ -78,6 +83,7 @@ startRound = true;
 startGoing = true;
 round = 0;
 objectPickedUp = false;
+objectIdentified = false;
 
 % instructions
 inst = struct('shape', 'box', 'pose', [-3.275; -6.15; 0.2151], 'dest', [-1 0]);
@@ -107,6 +113,22 @@ inst(5).basket_traj = circle(inst(5).dest, r_table_traj, 'n', n_table_traj);
 
 box_nb = 1;
 goal = table1;
+
+
+% set RANSAC options
+cyl_options.epsilon = 1e-6;
+cyl_options.P_inlier = 1-1e-4;
+cyl_options.sigma = 0.005;
+cyl_options.est_fun = @estimate_circle;
+cyl_options.man_fun = @error_circle;
+cyl_options.mode = 'RANSAC';
+cyl_options.Ps = [];
+cyl_options.notify_iters = [];
+cyl_options.min_iters = 100;
+cyl_options.fix_seed = false;
+cyl_options.reestimate = true;
+cyl_options.stabilize = false;
+cyl_options.parameters.radius = d_cyl/2;
 
 
 disp('Starting robot');
@@ -410,17 +432,56 @@ while true,
                 if objectPickedUp
                     fsm = 'throw';
                 else
-                    fsm = 'round';
+                    fsm = 'find closest box';
                     startRound = true;
                 end
             end
         end
         
-    elseif strcmp(fsm, 'round') % the youbot turn around a table
+    elseif strcmp(fsm, 'find closest box')
         
-        [res, armPos] = vrep.simxGetObjectPosition(id, h.armRef, -1,...
+        res = vrep.simxSetFloatSignal(id, 'rgbd_sensor_scan_angle', pi/2,...
+                                 vrep.simx_opmode_oneshot_wait);
+        vrchk(vrep, res);
+         
+        vrep.simxSetObjectOrientation(id, h.rgbdCasing, h.ref,...
+            [0 0 cam_angle], vrep.simx_opmode_oneshot);
+        
+        % Ask the sensor to turn itself on, take A SINGLE 3D IMAGE,
+        % and turn itself off again
+        res = vrep.simxSetIntegerSignal(id, 'handle_xyz_sensor', 1,...
             vrep.simx_opmode_oneshot_wait);
-        vrchk(vrep, res, true);
+        vrchk(vrep, res);
+        
+        fprintf('Capturing point cloud...\n');
+        ptsCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait);
+        
+        % Here, we only keep points above the table
+        ptsCloud = ptsCloud(1:4, ptsCloud(4,:) < d_table+0.3);
+        ptsCloud = ptsCloud(1:4, ptsCloud(2,:) > -0.02);
+        [box_pose, dist] = closest_point_from_cloud(ptsCloud)
+        
+        figure
+        plot3(ptsCloud(3,:),ptsCloud(1,:),ptsCloud(2,:), '*')
+        
+        if isempty(box_pose)
+            fsm = 'finished';
+        else
+            % Convert box coordinates from the frame of the cam to the 
+            % frame of the youbot
+            T = se2(rgbdPos(1),rgbdPos(2),cam_angle);
+            box_pose(1:2) = homtrans(T,box_pose(1:2));
+            
+            % Convert box coordinates from the frame of the youbot to the 
+            % main frame  
+            T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
+            box_pose(1:2) = homtrans(T,box_pose(1:2))
+            
+            fsm = 'round';
+            startRound = true;
+        end
+        
+    elseif strcmp(fsm, 'round') % the youbot turn around a table
         
         x = youbotPos(1);
         y = youbotPos(2);
@@ -436,7 +497,6 @@ while true,
             prev_t = 0;
             v_supp = 0;
             
-            box_pose = inst(box_nb).pose;
             x_box = box_pose(1);
             y_box = box_pose(2);
             
@@ -444,6 +504,7 @@ while true,
             x_dest = circle_traj(1,index_dest);
             y_dest = circle_traj(2,index_dest);
             
+            % Choose the gyratory direction for the shortest path
             if (index_dest > index && index_dest - index < n_table_traj/2)...
                     || (index_dest < index && index - index_dest > n_table_traj/2)
                 
@@ -452,7 +513,7 @@ while true,
                 direction = 1;
             end
             
-            dist1_arm_dest = 100;
+            dist1_ref_dest = 100;
         end
         
         x_star = circle_traj(1,index);
@@ -467,13 +528,13 @@ while true,
         e = sqrt((x_star-x)^2+(y_star-y)^2)-0.1;
         if e > 0.01
             if v_supp < 0.8
+                % Bound the velocity to be sure the robot won't deviate too
+                % much from his circular trajectory
                 v_supp = (abs(t-prev_t)*abs(e-prev_e)/2);
             end
             v_star = 25*e + 10*v_supp + 2;
             alpha = 15*angdiff(theta_star, theta);
-            %gamma = -theta+atan2((y_star - y),(x_star - x));
-            forwBackVel = direction*v_star;%*sin(gamma);
-            %leftRightVel = v_star*cos(gamma);
+            forwBackVel = direction*v_star;
             rotVel = alpha;
             
         else
@@ -491,23 +552,123 @@ while true,
                 end
             end
             
-            dist2_arm_dest = arc_dist(circle_traj, r_table_traj, [armPos(1); armPos(2)],[x_dest; y_dest]);
-            DELTA_dist_arm_dest = dist2_arm_dest - dist1_arm_dest;
-            dist1_arm_dest = dist2_arm_dest;
+            % Select the youbot component which needs to reach the
+            % destination. It is either the arm reference if a box has been
+            % identified and localized, either the camera, if we want the
+            % youbot to go near a box
+            if objectIdentified
+                [res, armPos] = vrep.simxGetObjectPosition(id, h.armRef, -1,...
+                    vrep.simx_opmode_oneshot_wait);
+                vrchk(vrep, res, true);
+                
+                refPos = armPos;
+            else
+                T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
+                p = [rgbdPos(1);rgbdPos(2)];
+                refPos = homtrans(T,p);
+            end
             
-            if DELTA_dist_arm_dest > 0.01 %&& dist2_arm_dest < 0.1
-                fsm = 'grab';
+            % Calculates the distance left in the trajectory before
+            % reaching the destination
+            dist2_ref_dest = arc_dist(circle_traj, r_table_traj, [refPos(1); refPos(2)],[x_dest; y_dest]);
+             
+            % Calculates the variation of this distance
+            DELTA_dist_ref_dest = dist2_ref_dest - dist1_ref_dest;
+            dist1_ref_dest = dist2_ref_dest;
+            
+            % If this  variation is negative, it means we are getting
+            % closer to the goal, and when this variation becomes positive, 
+            % it means we just passed the goal, so we need to stop there
+            if DELTA_dist_ref_dest > 0.01
+                
+                if objectIdentified
+                    fsm = 'grab';
+                    objectIdentified = false;
+                else
+                    fsm = 'identify object';
+                end
                 forwBackVel = 0;
                 leftRightVel = 0;
                 rotVel = 0;
             end
         end
         
+    elseif strcmp(fsm, 'identify object')
+        
+        % Reduce the view angle to better see the objects
+        res = vrep.simxSetFloatSignal(id, 'rgbd_sensor_scan_angle', pi/6,...
+                                 vrep.simx_opmode_oneshot_wait);
+        vrchk(vrep, res);
+         
+        vrep.simxSetObjectOrientation(id, h.rgbdCasing, h.ref,...
+            [0 0 cam_angle], vrep.simx_opmode_oneshot);
+        
+        % Ask the sensor to turn itself on, take A SINGLE 3D IMAGE,
+        % and turn itself off again
+        res = vrep.simxSetIntegerSignal(id, 'handle_xyz_sensor', 1,...
+            vrep.simx_opmode_oneshot_wait);
+        vrchk(vrep, res);
+        
+        fprintf('Capturing point cloud...\n');
+        ptsCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait);
+        
+        % Here we (try to) keep the points belonging to a single object
+        ptsCloud = ptsCloud(1:4, ptsCloud(2,:) > -0.02);
+        [box_pose, dist] = closest_point_from_cloud(ptsCloud);
+        ptsCloud = ptsCloud(1:4, ptsCloud(4,:) < dist+0.15);
+        
+        figure
+        plot3(ptsCloud(3,:),ptsCloud(1,:),ptsCloud(2,:), '*')
+        
+        % Project the points cloud on the XY plane
+        pts = [ptsCloud(3,:); ptsCloud(1,:)];
+        n_pts = length(pts(1,:));
+        
+        figure;
+        plot(pts(1,:),pts(2,:),'*')
+        
+        % Use of RANSAC to determine if the object is cylindrical or
+        % box-shaped.
+        [results, options_res] = RANSAC(pts, cyl_options);
+        
+        if sum(results.CS)/n_pts > 0.75
+            shape = 'cylinder'
+            box_pose = [results.Theta(1);...
+                        results.Theta(2);...
+                        (max(ptsCloud(2,:))+min(ptsCloud(2,:)))/2];
+        else
+            shape  = 'box'
+            box_pose = [(max(ptsCloud(3,:))+min(ptsCloud(3,:)))/2;...
+                        (max(ptsCloud(1,:))+min(ptsCloud(1,:)))/2;...
+                        (max(ptsCloud(2,:))+min(ptsCloud(2,:)))/2];
+        end
+        
+        % Convert box coordinates from the frame of the cam to the
+        % frame of the youbot
+        T = se2(rgbdPos(1),rgbdPos(2),cam_angle);
+        box_pose(1:2) = homtrans(T,box_pose(1:2));
+        
+        % Convert box coordinates from the frame of the youbot to the
+        % main frame
+        T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
+        box_pose(1:2) = homtrans(T,box_pose(1:2));
+        box_pose(3) = box_pose(3)+0.12;
+        
+        objectIdentified = true;
+        fsm = 'round';
+        startRound = true;
+        
     elseif strcmp(fsm, 'grab')
         
+        if strcmp(shape, 'cylinder')
+            box_nb = 2;
+        else
+            box_nb = 1;
+        end
+        
         T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
-        p = inst(box_nb).pose; %pose yellow box
-        p(3) = p(3);
+        p = box_pose; %pose yellow box
+        p(3) = p(3)+youbotPos(3);
         p(1:2) = homtrans(inv(T), p(1:2));
         
         vrep.simxSetIntegerSignal(id, 'km_mode', 1, vrep.simx_opmode_oneshot_wait);
@@ -620,15 +781,15 @@ while true,
         end
         pause(1);
         
-        box_nb = box_nb+1;
-        if box_nb == 6
-            fsm = 'finished';
-        else
+%         box_nb = box_nb+1;
+%         if box_nb == 6
+%             fsm = 'finished';
+%         else
             goal = table1;
             fsm = 'go to table/basket';
             startGoing = true;
             objectPickedUp = false;
-        end
+%         end
         
         
     elseif strcmp(fsm, 'drive')

@@ -40,6 +40,12 @@ function testbot()
    % option.
    pause(.2);
    
+    vrep.simxSetObjectOrientation(id, h.rgbdCasing, h.ref,...
+            [0 0 0], vrep.simx_opmode_oneshot);
+        
+    pause(10);
+   
+   
    % Constants:
    
    timestep = .05;

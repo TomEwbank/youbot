@@ -170,8 +170,10 @@ function testbot()
         b = false
    end
    
-   vrep.simxSetObjectOrientation(id, h.rgbdCasing, h.ref,...
-                                 [0 0 pi/6], vrep.simx_opmode_oneshot);
+   [res, Pos] = vrep.simxGetObjectPosition(id, h.ref, h.armRef,...
+                vrep.simx_opmode_oneshot_wait);
+            vrchk(vrep, res, true);
+           Pos
    pause(10);
    % Update wheel velocities
    res = vrep.simxPauseCommunication(id, true); vrchk(vrep, res);

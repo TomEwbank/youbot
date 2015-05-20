@@ -739,7 +739,7 @@ while true,
         
         gripTargDist = 1;
         while gripTargDist > 0.0005
-            [res, tipPos] = vrep.simxGetObjectPosition(id, h.ptip, h.ref,...
+            [res, tipPos] = vrep.simxGetObjectPosition(id, h.ptip, h.armRef,...
                 vrep.simx_opmode_oneshot_wait);
             vrchk(vrep, res, true);
             gripTargDist = sqrt((p(1)-tipPos(1))^2+(p(2)-tipPos(2))^2);
@@ -751,7 +751,7 @@ while true,
         vrchk(vrep, res, true);
         gripTargDist = 1;
         while gripTargDist > 0.0005
-            [res, tipPos] = vrep.simxGetObjectPosition(id, h.ptip, h.ref,...
+            [res, tipPos] = vrep.simxGetObjectPosition(id, h.ptip, h.armRef,...
                 vrep.simx_opmode_oneshot_wait);
             vrchk(vrep, res, true);
             gripTargDist = sqrt((p(1)-tipPos(1))^2+(p(2)-tipPos(2))^2);
@@ -774,13 +774,13 @@ while true,
         
         vrep.simxSetIntegerSignal(id, 'km_mode', 1, vrep.simx_opmode_oneshot_wait);
         vrchk(vrep, res, true);
-        p =[0; -0.1; youbotPos(3)+0.06];
+        p =[0; -0.1-0.1662; youbotPos(3)+0.06];
         vrep.simxSetObjectPosition(id, h.ptarget, h.ref,...
             p,...
             vrep.simx_opmode_oneshot_wait);
         gripTargDist = 1;
         while gripTargDist > 0.0005
-            [res, tipPos] = vrep.simxGetObjectPosition(id, h.ptip, h.ref,...
+            [res, tipPos] = vrep.simxGetObjectPosition(id, h.ptip, h.armRef,...
                 vrep.simx_opmode_oneshot_wait);
             vrchk(vrep, res, true);
             gripTargDist = sqrt((p(1)-tipPos(1))^2+(p(2)-tipPos(2))^2);

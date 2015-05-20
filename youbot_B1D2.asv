@@ -1,4 +1,4 @@
-function youbot_exploration2()
+function youbot_B1D2()
 % youbot Illustrates the V-REP Matlab bindings.
 
 % (C) Copyright Renaud Detry 2013.
@@ -527,6 +527,22 @@ while true,
         
     elseif strcmp(fsm, 'round') % the youbot turn around a table
         
+        % Select the youbot component which needs to reach the
+        % destination. It is either the arm reference if a box has been
+        % identified and localized, either the camera, if we want the
+        % youbot to go near a box
+        if objectIdentified
+            [res, armPos] = vrep.simxGetObjectPosition(id, h.armRef, -1,...
+                vrep.simx_opmode_oneshot_wait);
+            vrchk(vrep, res, true);
+            
+            refPos = armPos;
+        else
+            T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
+            p = [rgbdPos(1);rgbdPos(2)];
+            refPos = homtrans(T,p);
+        end
+        
         x = youbotPos(1);
         y = youbotPos(2);
         theta = youbotEuler(3);
@@ -561,7 +577,9 @@ while true,
                 direction = 1;
             end
             
-            dist1_ref_dest = 100;
+            x_start = refPos(1); 
+            y_start = refPos(2);
+            dist_init_ref_dest = arc_dist(circle_traj, r_table_traj, [refPos(1); refPos(2)],[x_dest; y_dest]);;
         end
         
         x_star = circle_traj(1,index);
@@ -600,34 +618,15 @@ while true,
                 end
             end
             
-            % Select the youbot component which needs to reach the
-            % destination. It is either the arm reference if a box has been
-            % identified and localized, either the camera, if we want the
-            % youbot to go near a box
-            if objectIdentified
-                [res, armPos] = vrep.simxGetObjectPosition(id, h.armRef, -1,...
-                    vrep.simx_opmode_oneshot_wait);
-                vrchk(vrep, res, true);
-                
-                refPos = armPos;
-            else
-                T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
-                p = [rgbdPos(1);rgbdPos(2)];
-                refPos = homtrans(T,p);
-            end
+            % Calculates the traveled distance
+            dist_traveled = arc_dist(circle_traj, r_table_traj,...
+                                    [refPos(1); refPos(2)],[x_start; y_start]);
             
-            % Calculates the distance left in the trajectory before
-            % reaching the destination
-            dist2_ref_dest = arc_dist(circle_traj, r_table_traj, [refPos(1); refPos(2)],[x_dest; y_dest]);
+            % Calculates the progression
+            prog = dist_traveled/dist_init_ref_dest;
             
-            % Calculates the variation of this distance
-            DELTA_dist_ref_dest = dist2_ref_dest - dist1_ref_dest;
-            dist1_ref_dest = dist2_ref_dest;
-            
-            % If this  variation is negative, it means we are getting
-            % closer to the goal, and when this variation becomes positive,
-            % it means we just passed the goal, so we need to stop there
-            if DELTA_dist_ref_dest > 0.01 && dist2_ref_dest < 0.05
+            % The progression to the destination is completed when it reaches 1
+            if prog >= 0.999
                 
                 if objectIdentified
                     fsm = 'grab';
@@ -697,16 +696,19 @@ while true,
             box_pose = [results.Theta(1);...
                 results.Theta(2);...
                 (max(ptsCloud(2,:))+min(ptsCloud(2,:)))/2-0.005];
+            d_further = 0.005;
         else
             shape  = 'box'
             if sum(results.CS)/n_pts > 0.2
                 box_pose = [results.Theta(1);...
                     results.Theta(2);...
                     (max(ptsCloud(2,:))+min(ptsCloud(2,:)))/2];
+                d_further = 0.008;
             else
                 box_pose = [(max(ptsCloud(3,:))+min(ptsCloud(3,:)))/2;...
                     (max(ptsCloud(1,:))+min(ptsCloud(1,:)))/2;...
                     (max(ptsCloud(2,:))+min(ptsCloud(2,:)))/2];
+                d_further = d_cyl/2;
             end
         end
         
@@ -739,7 +741,7 @@ while true,
         p(3) = p(3)+ 0.1;
         p(1:2) = homtrans(inv(T), p(1:2));
         
-        tipTraj = calc_tip_traj(p, d_cyl, d_cyl/3, 50);
+        tipTraj = calc_tip_traj(p, 1.2*d_cyl, d_further, 50);
         index = 1;
         
         p = tipTraj(:,index);

@@ -1,4 +1,4 @@
-function [E T_noise_squared d] = error_line(Theta, X, sigma, P_inlier)
+function [E, T_noise_squared, d] = error_line(Theta, X, sigma, P_inlier)
 
 % [E T_noise_squared d] = error_line(Theta, X, sigma, P_inlier)
 %
@@ -43,7 +43,7 @@ end;
 if (nargout > 1)
     
     if (P_inlier == 0)
-        T_noise = sigma;
+        T_noise_squared = sigma;
     else
         % Assumes the errors are normally distributed. Hence the sum of
         % their squares is Chi distributed (with 2 DOF since we are 

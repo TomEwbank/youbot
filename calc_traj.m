@@ -1,4 +1,22 @@
 function trajectory = calc_traj(map, pose, dest, cell_size, d)
+% Returns a trajectory from a starting position to destination in the given map
+%
+% ARGUMENTS 
+%   - map :         a NxN matrix representing the occupancy map in wich we  
+%                   want to calculate the trajectory. The reference frame 
+%                   is supposed to be at the center of the map.
+%   - pose :        the starting position [x y], in meters, in the 
+%                   reference frame of the map.
+%   - dest :        the destination [x y], in meters, in the reference 
+%                   frame of the map.
+%   - cell_size :   size of the side of a cell in the occupancy map
+%   - d :           distance between the reference frame and a frame in the 
+%                   corner of the map.
+%
+% OUTPUT
+%   - trajectory :  a Mx2 matrix containing the coordinates, in the 
+%                   reference frame of the map, of the points composing the 
+%                   trajectory.
 
 x_ref = pose(1);
 y_ref = pose(2);
@@ -10,8 +28,12 @@ y_robot = floor((y_ref+d)/cell_size)+1;
 
 occupancy_grid = map';
 
-dx = DXform(occupancy_grid, 'inflate', 1);%floor(0.5/cell_size)); % create navigation object
+% create navigation object with a map where obstacles have been slightly
+% inflated
+dx = DXform(occupancy_grid, 'inflate', 1); 
 if(dx.occgrid(y_robot, x_robot) == 1)
+    % if starting position considered as an obstacle in the inflated map,
+    % need to find a close free point to replace it
     a = y_robot-2;
     offset_x = 3;
     offset_y = 3;

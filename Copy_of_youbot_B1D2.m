@@ -1,9 +1,11 @@
-function youbot_B1D2()
-% youbot Illustrates the V-REP Matlab bindings.
-
-% (C) Copyright Renaud Detry 2013.
-% Distributed under the GNU General Public License.
-% (See http://www.gnu.org/copyleft/gpl.html)
+function cloud =  Copy_of_youbot_B1D2(map2)
+% This function controls the youbot to create a map of the
+% environnement where it will evolve, and then to pick up objects on tables
+% and put them into the appropriate baskests according to the given
+% instructions. In the current state of this work, coordinates of the tables
+% and baskets are considered known, and the robot is only capable of
+% picking up objects that are vertically standing and well separated from one
+% another.
 
 disp('Program started');
 %Use the following line if you had to recompile remoteApi
@@ -41,20 +43,24 @@ pause(.2);
 
 % Constants:
 timestep = .05;
-wheelradius = 0.0937/2; % This value may be inaccurate. Check before using.
+d = 7.5; % distance between the reference frame and a frame in the corner of the map
+cell_size = 0.25; % size of the side of a cell in the grid representing the map
 d_star = 0.2; % The robot maintains this distance behind a pursuit point
-c_box = 0.05;
-d_cyl = 0.05;
-d_table = 0.8;
-h_table = 0.185;
+c_box = 0.05; % length of the side of a box_shaped object
+d_cyl = 0.05; % diameter of a cylinder object
+d_table = 0.8; % diameter of the tables and baskets
+h_table = 0.185; % height of tables and baskests
 d_basket = d_table;
-h_basket = 0.185;
-cam_angle = pi/7;
+h_basket = h_table;
+r_table_traj = d_table/2+0.25; % radius of a circular trajectory around a table/basket
+n_table_traj = 200; % number of points that constitutes the previous trajectory
+r_table_zone = d_table/2+0.4; % radius of circle delimiting a zone where the robot is considered near the table/basket
+n_table_zone = 15; % number of points that constitutes the previous circle
 
+% Position of the camera in the reference frame of the youbot
 [res, rgbdPos] = vrep.simxGetObjectPosition(id, h.rgbdCasing, h.ref,...
     vrep.simx_opmode_oneshot_wait);
 vrchk(vrep, res, true);
-
 
 % Min max angles for all joints:
 armJointRanges = [-2.9496064186096,2.9496064186096;
@@ -63,32 +69,22 @@ armJointRanges = [-2.9496064186096,2.9496064186096;
     -1.7802357673645,1.7802357673645;
     -1.5707963705063,1.5707963705063 ];
 
+% arm configurations
 startingJoints = [0,30.91*pi/180,52.42*pi/180,72.68*pi/180,0];
-
+transportJoints = [0,30.91*pi/180,52.42*pi/180,0*pi/180,0];
+throwJoints = [90*pi/180, 19.6*pi/180, 113*pi/180, -41*pi/180, 0*pi/180];
 
 % Parameters for controlling the youBot's wheels:
 forwBackVel = 0;
 leftRightVel = 0;
 rotVel = 0;
 
-% table positions
+% table positions (TEMPORARY, tables will be detected during map exploration)
 table1 = [-3 -6];
-r_table_traj = d_table/2+0.25;
-n_table_traj = 200;
 table1_traj = circle(table1, r_table_traj, 'n', n_table_traj);
-r_table_zone = d_table/2+0.4;
-n_table_zone = 15;
 table1_zone = circle(table1, r_table_zone, 'n', n_table_zone);
-startRound = true;
-startGoing = true;
-round = 0;
-objectPickedUp = false;
-objectIdentified = false;
-objectLocated = false;
-searching_counter = 0;
 
-
-% instructions
+% instructions (TEMPORARY)
 inst = struct('shape', 'box', 'pose', [-3.275; -6.15; 0.2151], 'dest', [-1 0]);
 inst(1).basket_zone = circle(inst(1).dest, r_table_zone, 'n', n_table_zone);
 inst(1).basket_traj = circle(inst(1).dest, r_table_traj, 'n', n_table_traj);
@@ -118,17 +114,12 @@ inst(5).basket_zone = circle(inst(5).dest, r_table_zone, 'n', n_table_zone);
 inst(5).basket_traj = circle(inst(5).dest, r_table_traj, 'n', n_table_traj);
 inst(5).colorname = 'red';
 
-box_nb = 1;
-goal = table1;
-
-
 % set RANSAC options
 cyl_options.epsilon = 1e-6;
-cyl_options.P_inlier = 1-1e-4;
-cyl_options.sigma = 0.005;
+cyl_options.P_inlier = 1;
 cyl_options.est_fun = @estimate_circle;
 cyl_options.man_fun = @error_circle;
-cyl_options.mode = 'RANSAC';
+cyl_options.mode = 'MSAC';
 cyl_options.Ps = [];
 cyl_options.notify_iters = [];
 cyl_options.min_iters = 100;
@@ -136,8 +127,34 @@ cyl_options.fix_seed = false;
 cyl_options.reestimate = true;
 cyl_options.stabilize = false;
 cyl_options.parameters.radius = d_cyl/2-0.0025;
-cyl_options.T_noise_squared = 0.0002;
+cyl_options.T_noise_squared = 0.0001;
 
+% Flags
+fsm = 'go to table/basket';
+initialRotation = true;
+needNewTraject = true;
+explorationComplete = false;
+startRound = true;
+startGoing = true;
+objectPickedUp = false;
+objectIdentified = false;
+objectLocated = false;
+
+% initialization of some variables
+prev_e = 0.5;
+traj_indices = [-1, -1];
+fill_point = [-1 -1];
+searching_counter = 0;
+box_nb = 1;
+goal = table1;
+
+% initialisation of the map
+[X,Y] = meshgrid(-5:cell_size:5,-5.5:cell_size:2.5);
+X = reshape(X, 1, []);
+Y = reshape(Y, 1, []);
+colormap([0 104/255 139/255; 0 1 127/255; 205/255 38/255 38/255; 0 0 0; 1 0.5 0]);
+map = zeros((d/cell_size)*2); map(:) = -1;
+cloud = [];
 
 disp('Starting robot');
 
@@ -151,62 +168,19 @@ for i = 1:5,
 end
 res = vrep.simxPauseCommunication(id, false); vrchk(vrep, res);
 
-d = 7.5;
-cell_size = 0.25;
-
-plotData = true;
-if plotData,
-    %subplot(211)
-    %drawnow;
-    [X,Y] = meshgrid(-5:cell_size:5,-5.5:cell_size:2.5);
-    X = reshape(X, 1, []);
-    Y = reshape(Y, 1, []);
-end
-
-colormap([0 104/255 139/255; 0 1 127/255; 205/255 38/255 38/255; 0 0 0; 1 0.5 0]);
-map = zeros((d/cell_size)*2); map(:) = -1;%ajout
-
 % Make sure everything is settled before we start
 pause(2);
 
-[res, homeGripperPosition] = ...
-    vrep.simxGetObjectPosition(id, h.ptip,...
-    h.armRef,...
-    vrep.simx_opmode_buffer);
-vrchk(vrep, res, true);
-
-%%%%%%%%%%%%
-fsm = 'exploration';
-explorationComplete = false;
-%%%%%%%%%%%%
-
-[res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1,...
-    vrep.simx_opmode_buffer);
-vrchk(vrep, res, true);
-[res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1,...
-    vrep.simx_opmode_buffer);
-vrchk(vrep, res, true);
-
-initial_rotation = 1;
 traj_timer = tic;
-elapsed_time = 0; % elapsed time since the begining  of a trajectory
-next_point_delay = 1; % time interval before selecting the next pursuit point
-new_traject = 1;
-
-prev_e = 0.5;
-traj_indices = [-1, -1];
-fill_point = [-1 -1];
-new_point = 1;
-x_init = 0;
-y_init = 0;
-precision = 0;
 
 while true,
+    
     sim_timer = tic;
     if vrep.simxGetConnectionId(id) == -1,
         error('Lost connection to remote API.');
     end
     
+    % Get the youbot position and orientation at every iteration
     [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1,...
         vrep.simx_opmode_buffer);
     vrchk(vrep, res, true);
@@ -216,19 +190,22 @@ while true,
     
     if strcmp(fsm, 'exploration')
         
-        if plotData,
-            % Read data from the Hokuyo sensor:
-            [pts, contacts] = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer);
-            
-            in = inpolygon(X, Y, [h.hokuyo1Pos(1) pts(1,:) h.hokuyo2Pos(1)],...
-                [h.hokuyo1Pos(2) pts(2,:) h.hokuyo2Pos(2)]);
-            
-        end
+        % Get the data from the Hokuyo sensors
+        [pts, contacts] = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer);
+        in = inpolygon(X, Y, [h.hokuyo1Pos(1) pts(1,:) h.hokuyo2Pos(1)],...
+            [h.hokuyo1Pos(2) pts(2,:) h.hokuyo2Pos(2)]);
+        
         
         pose = [youbotPos(1) youbotPos(2) youbotEuler(3)];
+        
+        % a and b are the indices corresponding to the youbot position on
+        % the map
         a = floor((pose(1)+d)/cell_size)+1;
         b = floor((pose(2)+d)/cell_size)+1;
         
+        % Define the starting position of the youbot as the point where the
+        % floodfill operations will start from. (For more information about
+        % these floodfill operation, check in the "planNextMove" function)
         if(fill_point(1) == -1)
             fill_point = [a b];
         end
@@ -266,6 +243,7 @@ while true,
         map = ptsToCellmap(X(in), Y(in), pts(1,contacts), pts(2,contacts), map,...
             cell_size,pose,d,true);
         
+        % Display the map along with the youbot position and trajectory
         trajmap = map;
         if traj_indices(1) ~= -1
             trajmap(sub2ind(size(map),traj_indices(:,1),traj_indices(:,2))) = 2;
@@ -274,32 +252,35 @@ while true,
         imagesc(trajmap);
         drawnow;
         
-        if initial_rotation == 1 % Complete rotation at start
+        if initialRotation % Complete rotation at start
             rotVel = 5;
             if toc(traj_timer) > 6,
                 rotVel = 0;
-                initial_rotation = 0;
+                initialRotation = false;
             end
             
         else % The rotation at start has been performed
             
-            if new_traject == 1 % Destination reached -> Need to plan the next move
+            if needNewTraject % Destination reached -> Need to plan the next move
                 [traj, map, traj_indices] = planNextMove(map, pose, d, cell_size, fill_point);
-                if isempty(traj)
+                
+                if isempty(traj) % the environnement has been completely explored
                     fsm = 'go to table/basket';
                     explorationComplete = true;
-                end
-                s = size(traj);
-                if s(1) > 1
-                    traj = smooth_traj(traj);
+                else
                     s = size(traj);
+                    if s(1) > 1
+                        % adds more intermediate points to smooth the trajectory
+                        traj = smooth_traj(traj); 
+                        s = size(traj);
+                    end
+                    index = 1;
+                    
+                    needNewTraject = false;
+                    traj_timer = tic;
+                    prev_t = 0;
+                    prev_e = 0.4;
                 end
-                index = 1;
-                
-                new_traject = 0;
-                traj_timer = tic;
-                prev_t = 0;
-                prev_e = 0.4;
             end
             
             if not(explorationComplete)
@@ -308,36 +289,37 @@ while true,
                 trajmap(a,b) = 3;
                 imagesc(trajmap);
                 drawnow;
-                
-                
+                 
                 x = pose(1);
-                x_star = traj(index,1);
                 y = pose(2);
-                y_star = traj(index,2);
                 theta = pose(3);
+                
+                % Setting the intermediate destination (point of the trajectory)
+                x_star = traj(index,1);
+                y_star = traj(index,2);
                 theta_star = atan2((y_star - y),(x_star - x))+pi/2;
                 
                 % Check if we are not running to an obstacle
                 i_star = floor((x_star+d)/cell_size)+1;
                 j_star = floor((y_star+d)/cell_size)+1;
                 if index == s(1) || map(i_star,j_star) == 1
-                    new_traject = 1;
+                    needNewTraject = true;
                 end
                 
+                % Control the youbot velocity, direction and trajectory
                 t = toc(traj_timer);
                 e = sqrt((x_star-x)^2+(y_star-y)^2)-d_star;
-                if e > 0.01
+                if e > 0.01 % intermediate destination not reached yet
                     v_star = 20*e + 30*(abs(t-prev_t)*abs(e-prev_e)/2);
                     alpha = angdiff(theta_star, theta);
                     gamma = -theta+atan2((y_star - y),(x_star - x));
                     forwBackVel = v_star*sin(gamma);
                     leftRightVel = v_star*cos(gamma);
-                    rotVel = alpha*(abs(forwBackVel)+abs(leftRightVel))/2;
-                    
+                    rotVel = alpha*(abs(forwBackVel)+abs(leftRightVel))/2;    
                 else
                     index = index + 1;
-                    if index == s(1)
-                        new_traject = 1;
+                    if index == s(1) % Final destination reached
+                        needNewTraject = true;
                         forwBackVel = 0;
                         leftRightVel = 0;
                         rotVel = 0;
@@ -348,22 +330,27 @@ while true,
         
     elseif strcmp(fsm, 'go to table/basket')
         
-        if objectPickedUp
+        if objectPickedUp % need to go to the appropriate basket
             circle_zone = inst(box_nb).basket_zone;
-        else
+        else % need to go to the table
             circle_zone = table1_zone;
         end
         
         if startGoing
-            
+            % Set the destination of the youbot to the closest point of the
+            % circle delimiting the zone near the table/basket
             zone_index = find_closest_point(circle_zone, youbotPos(1), youbotPos(2));
             
+            % Sometimes the chosen destination is an obstacle on the map
+            % representation (because of its limited precision), and in
+            % that case we just look further on the circle for another 
+            % point until its not considered as an obstacle
             destIsObstacle = true;
             while destIsObstacle
                 destIsObstacle = false;
                 try
                     dest = [circle_zone(1,zone_index) circle_zone(2,zone_index)];
-                    traj = calc_traj(map, youbotPos, dest, cell_size, d);
+                    traj = calc_traj(map2, youbotPos, dest, cell_size, d);
                 catch
                     destIsObstacle = true;
                     if zone_index == n_table_zone
@@ -388,10 +375,11 @@ while true,
         end
         
         x = youbotPos(1);
-        x_star = traj(index,1);
         y = youbotPos(2);
-        y_star = traj(index,2);
         theta = youbotEuler(3);
+        
+        x_star = traj(index,1);
+        y_star = traj(index,2);
         theta_star = atan2((y_star - y),(x_star - x))+pi/2;
         
         t = toc(traj_timer);
@@ -423,6 +411,8 @@ while true,
             rotation_performed = false;
         end
         
+        % First turn the robot to make its direction tangent to the table/basket, 
+        % and clockwise oriented
         if not(rotation_performed)
             angdif = angdiff(theta_star, youbotEuler(3));
             rotVel = 10*angdif;
@@ -430,7 +420,7 @@ while true,
                 rotVel = 0;
                 rotation_performed = true;
             end
-        else
+        else % Then get close to the table/basket using the left-right velocity
             e = sqrt((goal(1)-youbotPos(1))^2+(goal(2)-youbotPos(2))^2);
             leftRightVel = 10*e;
             
@@ -457,8 +447,8 @@ while true,
         vrep.simxSetObjectOrientation(id, h.rgbdCasing, h.ref,...
             [0 0 cam_angle], vrep.simx_opmode_oneshot);
         
-        % Ask the sensor to turn itself on, take A SINGLE 3D IMAGE,
-        % and turn itself off again
+        % Take a single 3D image of the table, with a large angle of view,
+        % to detect objects on the table
         res = vrep.simxSetIntegerSignal(id, 'handle_xyz_sensor', 1,...
             vrep.simx_opmode_oneshot_wait);
         vrchk(vrep, res);
@@ -469,12 +459,26 @@ while true,
         % Here, we only keep points above the table
         ptsCloud = ptsCloud(1:4, ptsCloud(4,:) < d_table+0.3);
         ptsCloud = ptsCloud(1:4, ptsCloud(2,:) > -0.02);
-        [box_pose, dist] = closest_point_from_cloud(ptsCloud)
+        [box_pose, dist] = closest_point_from_cloud(ptsCloud);
+       ptsCloud = [ptsCloud(3,:); ptsCloud(1,:); ptsCloud(2,:)];
+        % Get the youbot position and orientation at every iteration
+    [res, camPos] = vrep.simxGetObjectPosition(id, h.rgbdCasing, -1,...
+        vrep.simx_opmode_buffer);
+    vrchk(vrep, res, true);
+    [res, camEuler] = vrep.simxGetObjectOrientation(id, h.rgbdCasing, -1,...
+        vrep.simx_opmode_buffer);
+    vrchk(vrep, res, true);
+    
+        for i = 1:length(cloud)
+            T = transl(camPos(1), camPos(2), camPos(3)) * trotz(camEuler(3));
+            cloud(1:3,i) = homtrans(T,cloud(1:3,i));
+        end
+         
+        cloud = [cloud ptsCloud(1:3,:)];
+%         figure
+%         plot3(ptsCloud(3,:),ptsCloud(1,:),ptsCloud(2,:), '*')
         
-        figure
-        plot3(ptsCloud(3,:),ptsCloud(1,:),ptsCloud(2,:), '*')
-        
-        if isempty(box_pose)
+        if 1
             % Need to check if there is still objects on the table that the
             % sensor didn't see because of its view angle.
             % To do that we set a destination point a little further
@@ -483,26 +487,27 @@ while true,
             
             % counts the number of times the robot has gone further because
             % he didn't found any object from  its point of view
-            searching_counter = searching_counter +1;
+            searching_counter = searching_counter +1
             
-            if searching_counter == 6
-                % the robot made a complete turn around the table  without
-                % finding anything --> his job is done.
+            if searching_counter == 10
+                % the robot has made a complete turn around the table 
+                %  without finding anything --> his job is done.
                 pause(1);
                 break
             end
             
-            % The destination is set in box_pose, since this variable is
+            % The destination where the robot will take another look on
+            % the table is set in box_pose, since this variable is
             % used as destination when the robot is turning around the
             % table.
             % First we calculate the coordinates in the reference frame of
             % the robot.
-            box_pose(1) = sqrt((table1(1)-youbotPos(1))^2+(table1(2)-youbotPos(2))^2)-0.5*d_table*cos(pi/4);
-            box_pose(2) = 0.5*d_table*sin(pi/4);
+            box_pose(1) = sqrt((table1(1)-youbotPos(1))^2+(table1(2)-youbotPos(2))^2)-0.5*d_table*cos(pi/8);
+            box_pose(2) = 0.5*d_table*sin(pi/8);
             
             box_pose = [box_pose(1); box_pose(2); 0.2];
             
-            % Convert the coordinates from the frame of the youbot to the
+            % Then convert the coordinates from the frame of the youbot to the
             % main frame
             T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
             box_pose(1:2) = homtrans(T,box_pose(1:2));
@@ -518,6 +523,8 @@ while true,
             T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
             box_pose(1:2) = homtrans(T,box_pose(1:2));
             
+            % Reset the counter and raise the flag telling an object has
+            % been located
             searching_counter = 0;
             objectLocated = true;
         end
@@ -530,7 +537,7 @@ while true,
         % Select the youbot component which needs to reach the
         % destination. It is either the arm reference if a box has been
         % identified and localized, either the camera, if we want the
-        % youbot to go near a box
+        % youbot to go near an object to analyse it
         if objectIdentified
             [res, armPos] = vrep.simxGetObjectPosition(id, h.armRef, -1,...
                 vrep.simx_opmode_oneshot_wait);
@@ -550,6 +557,8 @@ while true,
         if startRound
             circle_traj = table1_traj;
             
+            % Set the index of the first point in the trajectory around the
+            % table
             index = find_closest_point(circle_traj, x, y) + 4;
             if index > n_table_traj
                 index = mod(index, n_table_traj);
@@ -564,6 +573,8 @@ while true,
             x_box = box_pose(1);
             y_box = box_pose(2);
             
+            % Set the index of the destination point on the trajectory 
+            % around the table
             index_dest = find_closest_point(circle_traj, x_box, y_box);
             x_dest = circle_traj(1,index_dest);
             y_dest = circle_traj(2,index_dest);
@@ -577,8 +588,9 @@ while true,
                 direction = 1;
             end
             
-            x_start = refPos(1); 
+            x_start = refPos(1);
             y_start = refPos(2);
+            % Calculate the initial distance to be travelled before reaching the destination 
             dist_init_ref_dest = arc_dist(circle_traj, r_table_traj, [refPos(1); refPos(2)],[x_dest; y_dest]);;
         end
         
@@ -620,7 +632,7 @@ while true,
             
             % Calculates the traveled distance
             dist_traveled = arc_dist(circle_traj, r_table_traj,...
-                                    [refPos(1); refPos(2)],[x_start; y_start]);
+                [refPos(1); refPos(2)],[x_start; y_start]);
             
             % Calculates the progression
             prog = dist_traveled/dist_init_ref_dest;
@@ -652,7 +664,7 @@ while true,
             vrep.simx_opmode_oneshot_wait);
         vrchk(vrep, res);
         
-        % Find the angle for the camera oriented to the center of the table
+        % Find the angle to orient the camera towards the center of the table
         T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
         camPos = [rgbdPos(1);rgbdPos(2)];
         camPos = homtrans(T,camPos);
@@ -663,12 +675,10 @@ while true,
         vrep.simxSetObjectOrientation(id, h.rgbdCasing, h.ref,...
             [0 0 cam_angle], vrep.simx_opmode_oneshot);
         
-        % Ask the sensor to turn itself on, take A SINGLE 3D IMAGE,
-        % and turn itself off again
+        % Take a single 3D image of the object
         res = vrep.simxSetIntegerSignal(id, 'handle_xyz_sensor', 1,...
             vrep.simx_opmode_oneshot_wait);
         vrchk(vrep, res);
-        
         fprintf('Capturing point cloud...\n');
         ptsCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait);
         
@@ -677,42 +687,46 @@ while true,
         [box_pose, dist] = closest_point_from_cloud(ptsCloud);
         ptsCloud = ptsCloud(1:4, ptsCloud(4,:) < dist+0.15);
         
-        figure
-        plot3(ptsCloud(3,:),ptsCloud(1,:),ptsCloud(2,:), '*')
+%         figure
+%         plot3(ptsCloud(3,:),ptsCloud(1,:),ptsCloud(2,:), '*')
         
-        % Project the points cloud on the XY plane
+        % Project the points cloud on the plane of the table
         pts = [ptsCloud(3,:); ptsCloud(1,:)];
         n_pts = length(pts(1,:));
         
-        figure;
-        plot(pts(1,:),pts(2,:),'*')
+%         figure;
+%         plot(pts(1,:),pts(2,:),'*')
         
-        % Use of RANSAC to determine if the object is cylindrical or
-        % box-shaped.
+        % Use of RANSAC circle detection on the projected points to determine 
+        % if the object is cylindrical or box-shaped.
         [results, options_res] = RANSAC(pts, cyl_options);
         
-        if sum(results.CS)/n_pts > 0.8
+        if sum(results.CS)/n_pts > 0.95
             shape = 'cylinder'
             box_pose = [results.Theta(1);...
                 results.Theta(2);...
                 (max(ptsCloud(2,:))+min(ptsCloud(2,:)))/2-0.005];
-            d_further = 0.005;
+            d_further = 0.007;
         else
             shape  = 'box'
             if sum(results.CS)/n_pts > 0.2
+                % RANSAC fitted a circle on some of the box point, so the
+                % center of this circle is very likely close to the one of
+                % the box
                 box_pose = [results.Theta(1);...
                     results.Theta(2);...
                     (max(ptsCloud(2,:))+min(ptsCloud(2,:)))/2];
-                d_further = 0.008;
+                d_further = d_cyl/2;
             else
+                % Approximate the center of the box
                 box_pose = [(max(ptsCloud(3,:))+min(ptsCloud(3,:)))/2;...
                     (max(ptsCloud(1,:))+min(ptsCloud(1,:)))/2;...
                     (max(ptsCloud(2,:))+min(ptsCloud(2,:)))/2];
-                d_further = d_cyl/2;
+                d_further = d_cyl/3;
             end
         end
         
-        % Convert box coordinates from the frame of the cam to the
+        % Convert the object coordinates from the frame of the cam to the
         % frame of the youbot
         T = se2(rgbdPos(1),rgbdPos(2),cam_angle);
         box_pose(1:2) = homtrans(T,box_pose(1:2));
@@ -736,20 +750,24 @@ while true,
             vrep.simx_opmode_oneshot_wait);
         vrchk(vrep, res, true);
         
+        % Express the object coordinates in the frame of the youbot arm
         T = se2(armPos(1), armPos(2), armEuler(3));
         p = box_pose;
         p(3) = p(3)+ 0.1;
         p(1:2) = homtrans(inv(T), p(1:2));
         
+        % Calculate the tip trajectory  
         tipTraj = calc_tip_traj(p, 1.2*d_cyl, d_further, 50);
         index = 1;
         
+        % Setting the arm to the starting position  of the trajectory
         p = tipTraj(:,index);
         vrep.simxSetIntegerSignal(id, 'km_mode', 1, vrep.simx_opmode_oneshot_wait);
         vrchk(vrep, res, true);
         vrep.simxSetObjectPosition(id, h.ptarget, h.armRef, p,...
             vrep.simx_opmode_oneshot_wait);
         
+        % Wait for the arm to be in the starting position 
         gripTargDist = 1;
         while gripTargDist > 0.0005
             [res, tipPos] = vrep.simxGetObjectPosition(id, h.ptip, h.armRef,...
@@ -758,6 +776,7 @@ while true,
             gripTargDist = sqrt((p(1)-tipPos(1))^2+(p(2)-tipPos(2))^2);
         end
         
+        % Make the arm follow the trajectory defined previously
         while index <= length(tipTraj(1,:))
             p = tipTraj(:,index);
             vrep.simxSetObjectPosition(id, h.ptarget, h.armRef, p,...
@@ -765,12 +784,14 @@ while true,
             pause(4/50);
             index = index+1;
         end
-        %%%%%%%%
         
+        % Grab the object by closing the gripper
         vrep.simxSetIntegerSignal(id, 'gripper_open', 0, vrep.simx_opmode_oneshot);
         vrchk(vrep, res, true);
         pause(1);
         
+        % Set the arm to a predifined position to take a picture of the
+        % object
         vrep.simxSetIntegerSignal(id, 'km_mode', 1, vrep.simx_opmode_oneshot_wait);
         vrchk(vrep, res, true);
         p =[0; -0.1-0.1662; p(3)];
@@ -787,12 +808,12 @@ while true,
         
         pause(1);
         
-        
+        % Set the camera angle that look towards the arm of the youbot, and
+        % so towards the object in its gripper
         cam_angle = pi/2;
-        
         vrep.simxSetObjectOrientation(id, h.rgbdCasing, h.ref,...
             [0 0 cam_angle], vrep.simx_opmode_oneshot);
-        % Reduce the view angle to better see the objects
+        % Reduce the view angle to focus on the object
         res = vrep.simxSetFloatSignal(id, 'rgbd_sensor_scan_angle', pi/10,...
             vrep.simx_opmode_oneshot_wait);
         % Read data from the RGB camera
@@ -805,17 +826,19 @@ while true,
             vrep.simx_opmode_oneshot_wait);
         vrchk(vrep, res);
         fprintf('Captured %i pixels.\n', resolution(1)*resolution(2));
-        figure
-        imshow(shot);
-        drawnow;
+%         figure
+%         imshow(shot);
+%         drawnow;
         
         vrchk(vrep, res, true);
         
+        % Find the color of the grabbed object
         color = get_object_color(shot)
         
         vrep.simxSetIntegerSignal(id, 'km_mode', 0, vrep.simx_opmode_oneshot_wait);
         vrchk(vrep, res, true);
         
+        % Find the corresponding object in the instructions table
         box_nb = 0;
         for i = 1:length(inst)
             if strcmp(inst(i).shape, shape) &&...
@@ -824,8 +847,10 @@ while true,
             end
         end
         
-        if box_nb ~= 0
-            transportJoints = [0,30.91*pi/180,52.42*pi/180,0*pi/180,0];
+        if box_nb ~= 0 % Matched object
+            
+            % Set the arm to its transport configuration and go to the
+            % appropriate basket to throw  the object
             for i = 1:5
                 res = vrep.simxSetJointTargetPosition(id, h.armJoints(i),...
                     transportJoints(i),...
@@ -838,7 +863,10 @@ while true,
             goal = inst(box_nb).dest;
             startGoing = true;
             fsm = 'go to table/basket';
-        else
+            
+        else % No corresponding object found -> the youbot failed to grab something
+             % -> set the arm to its starting position and look again for
+             % an object to grab
             objectPickedUp = false;
             vrep.simxSetIntegerSignal(id, 'gripper_open', 1, vrep.simx_opmode_oneshot);
             vrchk(vrep, res, true);
@@ -861,7 +889,8 @@ while true,
     elseif strcmp(fsm, 'throw')
         vrep.simxSetIntegerSignal(id, 'km_mode', 0, vrep.simx_opmode_oneshot_wait);
         vrchk(vrep, res, true);
-        throwJoints = [90*pi/180, 19.6*pi/180, 113*pi/180, -41*pi/180, 0*pi/180];
+        
+        % Setting the arm  to its throwing configuration
         for i = 1:5,
             res = vrep.simxSetJointTargetPosition(id, h.armJoints(i),...
                 throwJoints(i),...
@@ -869,10 +898,13 @@ while true,
             vrchk(vrep, res, true);
         end
         pause(2);
+        
+        % open the gripper to throw  the object
         vrep.simxSetIntegerSignal(id, 'gripper_open', 1, vrep.simx_opmode_oneshot);
         vrchk(vrep, res, true);
         pause(1);
         
+        % Setting the arm to its starting configuration
         for i = 1:5,
             res = vrep.simxSetJointTargetPosition(id, h.armJoints(i),...
                 startingJoints(i),...
@@ -881,12 +913,14 @@ while true,
         end
         pause(1);
         
+        % Go back to the table to grab another  object
         goal = table1;
         fsm = 'go to table/basket';
         startGoing = true;
         objectPickedUp = false;
         
     end
+    
     % Update wheel velocities
     res = vrep.simxPauseCommunication(id, true); vrchk(vrep, res);
     vrep.simxSetJointTargetVelocity(id, h.wheelJoints(1),...
@@ -910,4 +944,4 @@ while true,
         pause(min(timeleft, .01));
     end
 end
-end% main function
+end

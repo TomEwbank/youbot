@@ -1,4 +1,12 @@
 function theta = table_tg_angle(table, pose)
+% Returns the angle that orients a robot to be tangent to a circular table
+%
+% ARGUMENTS
+%   - table :  the coordinates [x y] of the table
+%   - pose :   the position [x y] of the robot
+%
+% OUTPUT
+%   - theta :  the angle that orients a robot to be tangent to the table
 
 alpha = angle_3pts(pose, table, [pose(1) pose(2)+1]);
 

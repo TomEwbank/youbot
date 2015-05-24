@@ -1,8 +1,0 @@
-function traj = calc_tip_traj(p,d_before,d_after,n)
-
-pente = p(2)/p(1);
-alpha = arctan(pente);
-
-p_start = [p(1)-
-
-end

@@ -1,5 +1,37 @@
 function updated_map = ptsToCellmap(X,Y,Xc,Yc,map,cell_size,pose,d,opt)
+% Updates a map based on the data gathered by Hokuyo sensors of a robot
+%
+% ARGUMENTS
+%   - X :           a vector containing the x coordinates of the points in 
+%                   the area swept by the sensors. These coordinates are in
+%                   the reference frame of the robot.
+%   - Y :           a vector containing the y coordinates of the points in 
+%                   the area swept by the sensors. These coordinates are in
+%                   the reference frame of the robot.
+%   - Xc :          a vector containing the x coordinates of the points 
+%                   where obstacles were detected by the sensors. These 
+%                   coordinates are in the reference frame of the robot.
+%   - Yc :          a vector containing the y coordinates of the points 
+%                   where obstacles were detected by the sensors. These 
+%                   coordinates are in the reference frame of the robot.
+%   - map :         a NxN matrix representing the occupancy map in wich we
+%                   want to calculate the trajectory. The reference frame
+%                   is supposed to be at the center of the map. Unexplored
+%                   points in the map are equal to -1, explored ones are
+%                   equal to 0 and obstacles are equal to 1.
+%   - cell_size :   size of the side of a cell in the occupancy map
+%   - pose :        the position [x y theta] of the frame of the robot in
+%                   the reference frame of the map.
+%   - d :           distance between the reference frame and a frame in the
+%                   corner of the map.
+%   - opt :         Boolean value, true if you want to use the mex
+%                   implementation, and false if you want to use the matlab
+%                   one.
+%
+% OUTPUT
+%   - updated_map : The map that has been updated.
 
+% Check the type of the arguments
     if nargin < 9
         if nargin < 8
             if nargin < 7
@@ -46,16 +78,15 @@ function updated_map = ptsToCellmap(X,Y,Xc,Yc,map,cell_size,pose,d,opt)
         error(msg);
     end
     
-    if opt
+    if opt % performs the update using the mex function (faster)
         updated_map = ptsToCellmapMex(X,Y,double(Xc),double(Yc),map,cell_size,double(pose),d);
-    else
+    else % performs the updtate using a matlab implementation (slower)
 		theta = pose(3);
         x_ref = pose(1);
         y_ref = pose(2);
         s = size(map);
-        
-        %map(floor((x_ref+d)/cell_size)+1, floor((y_ref+d)/cell_size)+1) = 0;
 
+        % Adding explored points to the map
         for i = 1:length(X)
 
             m = floor((cos(theta)*X(i)-sin(theta)*Y(i)+x_ref+d)/cell_size);
@@ -66,11 +97,14 @@ function updated_map = ptsToCellmap(X,Y,Xc,Yc,map,cell_size,pose,d,opt)
             if(n < 0)
                 n = 0;
             end
+            % Do not mark as explored a point that has already been
+            % identified as an obstacle
             if(m+1 <= s(1) && n+1 <= s(2) && map(m+1,n+1) ~= 1) 
                 map(m+1,n+1) = 0;
             end
         end
 
+        % Adding obstacles to the  map 
         for i = 1:length(Xc)
 
             m = floor((cos(theta)*Xc(i)-sin(theta)*Yc(i)+x_ref+d)/cell_size);

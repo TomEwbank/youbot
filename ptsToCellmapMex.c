@@ -1,3 +1,5 @@
+/* Updates a map based on the data gathered by Hokuyo sensors of a robot
+ * (see file "ptsToCellmap.m" for more details about input and output) */
 #include <math.h>
 #include "mex.h"
 
@@ -43,6 +45,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 	{
 		m = floor((cos(theta)*x[i]-sin(theta)*y[i]+x_ref+d)/cell_size);
 		n = floor((sin(theta)*x[i]+cos(theta)*y[i]+y_ref+d)/cell_size);
+        /* Do not mark as explored a point that has already been
+           identified as an obstacle */
         if (m >= 0 && n >=0 && m < M && n < N && new_map[m + M*n] != 1)
             new_map[m + M*n] = 0;
 	}

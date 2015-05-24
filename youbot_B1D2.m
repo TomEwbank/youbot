@@ -1,4 +1,4 @@
-function youbot_B1D2(map2)
+function youbot_B1D2()
 % This function controls the youbot to create a map of the
 % environnement where it will evolve, and then to pick up objects on tables
 % and put them into the appropriate baskests according to the given
@@ -130,7 +130,7 @@ cyl_options.parameters.radius = d_cyl/2-0.0025;
 cyl_options.T_noise_squared = 0.0002;
 
 % Flags
-fsm = 'go to table/basket';
+fsm = 'exploration';
 initialRotation = true;
 needNewTraject = true;
 explorationComplete = false;
@@ -352,7 +352,7 @@ while true,
                 destIsObstacle = false;
                 try
                     dest = [circle_zone(1,zone_index) circle_zone(2,zone_index)];
-                    traj = calc_traj(map2, youbotPos, dest, cell_size, d);
+                    traj = calc_traj(map, youbotPos, dest, cell_size, d);
                 catch
                     destIsObstacle = true;
                     if zone_index == n_table_zone

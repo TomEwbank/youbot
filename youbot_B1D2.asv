@@ -460,11 +460,11 @@ while true,
         
         % Here, we only keep points above the table
         ptsCloud = ptsCloud(1:4, ptsCloud(4,:) < d_table+0.3);
-        ptsCloud = ptsCloud(1:4, ptsCloud(2,:) > -0.015);
+        ptsCloud = ptsCloud(1:4, ptsCloud(2,:) > -0.02);
         [box_pose, dist] = closest_point_from_cloud(ptsCloud);
         
-        figure
-        plot3(ptsCloud(3,:),ptsCloud(1,:),ptsCloud(2,:), '*')
+%         figure
+%         plot3(ptsCloud(3,:),ptsCloud(1,:),ptsCloud(2,:), '*')
         
         if isempty(box_pose)
             % Need to check if there is still objects on the table that the
@@ -675,15 +675,15 @@ while true,
         [box_pose, dist] = closest_point_from_cloud(ptsCloud);
         ptsCloud = ptsCloud(1:4, ptsCloud(4,:) < dist+0.15);
         
-        figure
-        plot3(ptsCloud(3,:),ptsCloud(1,:),ptsCloud(2,:), '*')
+%         figure
+%         plot3(ptsCloud(3,:),ptsCloud(1,:),ptsCloud(2,:), '*')
         
         % Project the points cloud on the plane of the table
         pts = [ptsCloud(3,:); ptsCloud(1,:)];
         n_pts = length(pts(1,:));
         
-        figure;
-        plot(pts(1,:),pts(2,:),'*')
+%         figure;
+%         plot(pts(1,:),pts(2,:),'*')
         
         % Use of RANSAC circle detection on the projected points to determine 
         % if the object is cylindrical or box-shaped.
@@ -694,7 +694,7 @@ while true,
             box_pose = [results.Theta(1);...
                 results.Theta(2);...
                 (max(ptsCloud(2,:))+min(ptsCloud(2,:)))/2-0.005];
-            d_further = d_cyl/2.5;
+            d_further = 0.008;
         else
             shape  = 'box'
 %             if sum(results.CS)/n_pts > 0.2
@@ -714,25 +714,20 @@ while true,
 %             end
         end
         
-        if isequal(size(box_pose), [3 1])
-            % Convert the object coordinates from the frame of the cam to the
-            % frame of the youbot
-            T = se2(rgbdPos(1),rgbdPos(2),cam_angle);
-            box_pose(1:2) = homtrans(T,box_pose(1:2));
-            
-            % Convert box coordinates from the frame of the youbot to the
-            % main frame
-            T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
-            box_pose(1:2) = homtrans(T,box_pose(1:2));
-            box_pose(3) = box_pose(3)+0.12;
-            
-            objectIdentified = true;
-            fsm = 'round';
-            startRound = true;
-        else
-            fsm = 'find closest box';
-            objectLocated = false;
-        end
+        % Convert the object coordinates from the frame of the cam to the
+        % frame of the youbot
+        T = se2(rgbdPos(1),rgbdPos(2),cam_angle);
+        box_pose(1:2) = homtrans(T,box_pose(1:2));
+        
+        % Convert box coordinates from the frame of the youbot to the
+        % main frame
+        T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
+        box_pose(1:2) = homtrans(T,box_pose(1:2));
+        box_pose(3) = box_pose(3)+0.12;
+        
+        objectIdentified = true;
+        fsm = 'round';
+        startRound = true;
         
     elseif strcmp(fsm, 'grab')
         
@@ -781,7 +776,7 @@ while true,
         % Grab the object by closing the gripper
         vrep.simxSetIntegerSignal(id, 'gripper_open', 0, vrep.simx_opmode_oneshot);
         vrchk(vrep, res, true);
-        pause(2);
+        pause(1);
         
         % Set the arm to a predifined position to take a picture of the
         % object
@@ -845,10 +840,9 @@ while true,
             % Set the arm to its transport configuration and go to the
             % appropriate basket to throw  the object
             for i = 1:5
-                res = vrep.simxSetJointTargetPosition(id, h.armJoints(6-i),...
-                    transportJoints(6-i),...
+                res = vrep.simxSetJointTargetPosition(id, h.armJoints(i),...
+                    transportJoints(i),...
                     vrep.simx_opmode_oneshot_wait);
-                pause(1);
                 vrchk(vrep, res, true);
             end
             pause(1);

@@ -408,7 +408,7 @@ while true,
     elseif strcmp(fsm, 'get close table/basket')
         
         if startGetClose
-            theta_star = table_tg_angle(goal, youbotPos(1:2));
+            theta_star = table_tg_angle(goal, youbotPos(1:2))
             startGetClose = false;
             rotation_performed = false;
         end
@@ -459,7 +459,7 @@ while true,
         ptsCloud = youbot_xyz_sensor(vrep, h, vrep.simx_opmode_oneshot_wait);
         
         % Here, we only keep points above the table
-        ptsCloud = ptsCloud(1:4, ptsCloud(4,:) < d_table+0.3);
+        ptsCloud = ptsCloud(1:4, ptsCloud(4,:) < d_table);
         ptsCloud = ptsCloud(1:4, ptsCloud(2,:) > -0.015);
         [box_pose, dist] = closest_point_from_cloud(ptsCloud);
         
@@ -543,6 +543,7 @@ while true,
         theta = youbotEuler(3);
         
         if startRound
+            roundTimer = tic;
             circle_traj = table1_traj;
             
             % Set the index of the first point in the trajectory around the
@@ -642,6 +643,16 @@ while true,
                 forwBackVel = 0;
                 leftRightVel = 0;
                 rotVel = 0;
+            else
+                if toc(roundTimer) > 20 % Safety timer
+                    forwBackVel = 0;
+                    leftRightVel = 0;
+                    rotVel = 0;
+                    startRound = true;
+                    objectLocated = false;
+                    objectIdentified = false;
+                    fsm = 'find closest box'
+                end
             end
         end
         

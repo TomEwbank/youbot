@@ -162,7 +162,7 @@ Now that we've explained how the youBot represents and updates its map, it remai
 \subsection{Trajectories}
 
 \paragraph{}
-The trajectories of the youBot are calculated thanks to the (partial) map and the distance transform function from Peter Corke's robotics toolbox\cite{CorkeRTB}. They are on the form of ordered series of points through which the youBot has to go. The more points the trajectory contains, the more fluid the trajectory is, so based on the fluidity or precision we want to have, we can increase the number of points of a trajectory. 
+The trajectories of the youBot are calculated thanks to the (partial) map and the distance transform function from Peter Corke's robotics toolbox\cite{CorkeRTB}. A trajectory is an ordered list of points through which the youBot has to go. The more points the trajectory contains, the more fluid the trajectory is, so, based on the fluidity or precision we want to have, we can increase the number of points of a trajectory. 
 
 \paragraph{}
 To make the robot follows a trajectory, we used similar controllers to the ones presented in section 4.2.3 of Peter Corke's book "Robotics, vision and control"\cite{CorkeBook}. These controllers allows us to define a global velocity and a rotation velocity at each timestep but, in addition to that, we took advantage of the omnidirectional wheels of the youBot and turned the global velocity into a velocity vector, which components are the left-right and the forward-back velocities, as shown on figure \ref{velocities}.
@@ -204,7 +204,7 @@ The process that we've implemented to achieve this purpose is the following:
 \begin{figure}[h]
 	\centering
 		\includegraphics[width=1.00\textwidth]{tangent.png}
-	\caption{youBot positionning before getting closer to the table}
+	\caption{youBot position before getting closer to the table}
 	\label{tangent}
 \end{figure}
 
@@ -224,7 +224,7 @@ Corke, Peter. \textit{Robotics Toolbox for MATLAB}. Release 9. \\
 \url{http://www.petercorke.com/Robotics_Toolbox.html}
 
 \bibitem{RANSAC}
-Zuliani, Marco. \textit{RANSAC toolBox.}
+Zuliani, Marco. \textit{RANSAC toolBox.} \\
 \url{https://github.com/RANSAC/RANSAC-Toolbox}
 
 

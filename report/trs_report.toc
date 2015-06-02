@@ -13,7 +13,7 @@
 \contentsline {subsection}{\numberline {2.2}Trajectories}{3}{subsection.2.2}
 \contentsline {paragraph}{}{3}{section*.10}
 \contentsline {paragraph}{}{3}{section*.11}
-\contentsline {subsection}{\numberline {2.3}Locating an identifying baskets}{4}{subsection.2.3}
+\contentsline {subsection}{\numberline {2.3}Locating and identifying baskets}{4}{subsection.2.3}
 \contentsline {paragraph}{}{4}{section*.13}
 \contentsline {subsection}{\numberline {2.4}Moving objects}{4}{subsection.2.4}
 \contentsline {paragraph}{}{4}{section*.14}

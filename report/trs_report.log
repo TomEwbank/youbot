@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.15 (MiKTeX 2.9 64-bit) (preloaded format=pdflatex 2015.4.15)  2 JUN 2015 23:21
+This is pdfTeX, Version 3.14159265-2.6-1.40.15 (MiKTeX 2.9 64-bit) (preloaded format=pdflatex 2015.4.15)  2 JUN 2015 23:29
 entering extended mode
 **trs_report.tex
 (trs_report.tex
@@ -842,7 +842,7 @@ Package atveryend Info: Empty hook `AfterLastShipout' on input line 233.
 Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 233.
 Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 233.
 Package rerunfilecheck Info: File `trs_report.out' has not changed.
-(rerunfilecheck)             Checksum: 4A40B456471161E79AF259E5716CA540;466.
+(rerunfilecheck)             Checksum: 44AAF3C8E7E5AC84D0613E3B559E67B2;467.
 Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 233.
  ) 
 Here is how much of TeX's memory you used:
@@ -861,7 +861,7 @@ nc/dvips/lm/lm-rm.enc}<C:/Program Files/MiKTeX 2.9/fonts/type1/public/lm/lmbx12
 fonts/type1/public/lm/lmr17.pfb><C:/Program Files/MiKTeX 2.9/fonts/type1/public
 /lm/lmri12.pfb><C:/Program Files/MiKTeX 2.9/fonts/type1/public/lm/lmsy8.pfb><C:
 /Program Files/MiKTeX 2.9/fonts/type1/public/lm/lmtt12.pfb>
-Output written on trs_report.pdf (7 pages, 2518195 bytes).
+Output written on trs_report.pdf (7 pages, 2518206 bytes).
 PDF statistics:
  173 PDF objects out of 1000 (max. 8388607)
  49 named destinations out of 1000 (max. 500000)

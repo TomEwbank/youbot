@@ -99,11 +99,11 @@ evolves and builds a map, knowing its accurate
 location. During the process of building this map, the 
 youBot is able to locate circular obstacles of a fixed 
 size. When it recognizes such an obstacle, the youBot 
-has two choice: either it's a table, either it's a 
+has two choices: either it's a table, either it's a 
 basket. There are only two tables and they are visible 
 with the Hokuyo sensor from the youBot's starting 
 position, no other cylindrical objects are within sight 
-of the Hokuyo from the youBot's starting position, so 
+of the Hokuyo from this position, so 
 it can directly record their location. Each basket is 
 associated with a different landmark object placed next 
 to itself, and the youBot is able to identify these 
@@ -141,7 +141,7 @@ We've thus adressed the milestones A1, B1, C2 and D2 of the project statement\ci
 
 \subsection{Map exploration}
 \paragraph{}
-The youBot stores a matrix representing the the map. The elements of this matrix can have three different values. One value represent the fact that a cell of the map hasn't been explored yet, another means that it has been, and the last one implies the presence of an obstacle in the cell. During its exploration, the youBot can thus gather the data supplied by its Hokuyo sensors and update the values of this matrix easily because it knows its accurate postion in the map.   
+The youBot stores a matrix representing the map. The elements of this matrix can have three different values. One value represents the fact that a cell of the map hasn't been explored yet, another means that it has been, and the last one implies the presence of an obstacle in the cell. During its exploration, the youBot can thus gather the data supplied by its Hokuyo sensors and update the values of this matrix easily because it knows its accurate postion in the map.   
 
 \paragraph{} 
 Now that we've explained how the youBot represents and updates its map, it remains to describe how the youBot will achieve to explore its environment entirely. Our exploration algorithm is the following:
@@ -176,7 +176,7 @@ To make the robot follows a trajectory, we used similar controllers to the ones 
 
 \FloatBarrier
 
-\subsection{Locating an identifying baskets}
+\subsection{Locating and identifying baskets}
 
 \paragraph{}
 
@@ -187,12 +187,12 @@ To make the robot follows a trajectory, we used similar controllers to the ones 
 The process that we've implemented to achieve this purpose is the following:
 \begin{enumerate}
 \item The youBot goes to the area of the table. This is done by defining some points that are at a certain distance around the table, and selecting the closest one as a goal.
-\item When it reached this goal, the youBot rotates in order to position itself with its direction perpendicular to the line going through its center and the center of the table. There is however two direction that follows this criteria, so we chose the one that is pointing in the clockwise direction around the table (see figure \ref{tangent}).
+\item When it reached this goal, the youBot rotates in order to position itself with its direction perpendicular to the line going through its center and the center of the table. There is however two directions that follow this criteria, so we chose the one that is pointing in the clockwise direction around the table (see figure \ref{tangent}).
 \item The youBot then get close to the table using left-right velocity only.
 \item When it is close enough, it takes a single 3D image with a large angle of view to detect objects above the table. Only the points that are above the table, and in a certain range, are kept.
 \item Whether objects are detected or not, every moves that the youBot will make at this step and the three next ones will follow a circular path defined around the table. If nothing is detected, the youBot goes a bit further and starts again from step 4, unless this has been repeated enough times to make a complete turn of the table and realize that there is no object left on it. In that case the job is done. If, however, the 3D image contains any points, the youBot selects the closest one and moves to align its camera with that point and the center of the table.
-\item The camera is oriented to the center of the table and takes once again a single 3D image, this time with a shorter angle of view, and a small range, in order to see only one object.
-\item The youBot then projects the points of this 3D image in the plane of the table and uses an implementation of the RANSAC algorithm\cite{RANSAC} to recognize circles of a given radius. If there is a match, the youBots then knows that the object is cylindrical but also knows the position of the center of this cylinder. If there is no match, the object is then box-shaped and each coordinate of the center of the box can be approximated by taking the extreme values and calculating their mean. 
+\item The camera is oriented to the center of the table and takes, once again, a single 3D image, but this time with a shorter angle of view, and a small range, in order to see only one object.
+\item The youBot then projects the points of this 3D image in the plane of the table and uses an implementation of the RANSAC algorithm\cite{RANSAC} to recognize circles of a given radius. If there is a match, the youBot then knows that the object is cylindrical but also knows the position of the center of this cylinder. If there is no match, the object is then box-shaped and each coordinate of the center of the box can be approximated by taking the extreme values and calculating their mean. 
 \item The youBot moves to align its arm reference point with the center of the object and the center of the table.
 \item The youBot places its arm tip in front of the box using V-REP IK.
 \item It moves its arm slowly along a straight line trajectory going through the center of the object, still using V-REP IK, and then grab it.

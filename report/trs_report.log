@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.15 (MiKTeX 2.9 64-bit) (preloaded format=pdflatex 2015.4.15)  2 JUN 2015 05:22
+This is pdfTeX, Version 3.14159265-2.6-1.40.15 (MiKTeX 2.9 64-bit) (preloaded format=pdflatex 2015.4.15)  2 JUN 2015 23:17
 entering extended mode
 **trs_report.tex
 (trs_report.tex
@@ -810,33 +810,49 @@ File: starting_position.png Graphic file (type png)
 <use starting_position.png>
 Package pdftex.def Info: starting_position.png used on input line 133.
 (pdftex.def)             Requested size: 455.24411pt x 209.91525pt.
- [2 <./starting_position.png>] [3]
-LaTeX Font Info:    Try loading font information for T1+lmtt on input line 184.
+ [2 <./starting_position.png>]
+<velocities.png, id=76, 554.82281pt x 307.90031pt>
+File: velocities.png Graphic file (type png)
+ <use velocities.png>
+Package pdftex.def Info: velocities.png used on input line 172.
+(pdftex.def)             Requested size: 284.52756pt x 157.90094pt.
+
+
+LaTeX Warning: `h' float specifier changed to `ht'.
+
+[3] [4 <./velocities.png>] <tangent.png, id=111, 749.80125pt x 359.09157pt>
+File: tangent.png Graphic file (type png)
+
+<use tangent.png>
+Package pdftex.def Info: tangent.png used on input line 206.
+(pdftex.def)             Requested size: 455.24411pt x 218.02638pt.
+ [5 <./tangent.png>]
+LaTeX Font Info:    Try loading font information for T1+lmtt on input line 216.
 
 
 ("C:\Program Files\MiKTeX 2.9\tex\latex\lm\t1lmtt.fd"
 File: t1lmtt.fd 2009/10/30 v1.6 Font defs for Latin Modern
 )
-Package atveryend Info: Empty hook `BeforeClearDocument' on input line 199.
- [4
+Package atveryend Info: Empty hook `BeforeClearDocument' on input line 233.
+ [6
 
 ]
-Package atveryend Info: Empty hook `AfterLastShipout' on input line 199.
+Package atveryend Info: Empty hook `AfterLastShipout' on input line 233.
  (trs_report.aux)
-Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 199.
-Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 199.
+Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 233.
+Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 233.
 Package rerunfilecheck Info: File `trs_report.out' has not changed.
-(rerunfilecheck)             Checksum: BF370F902868394E1B9DA1C16E361543;466.
-Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 199.
+(rerunfilecheck)             Checksum: 4A40B456471161E79AF259E5716CA540;466.
+Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 233.
  ) 
 Here is how much of TeX's memory you used:
- 10539 strings out of 493698
- 151116 string characters out of 3144418
+ 10570 strings out of 493698
+ 151455 string characters out of 3144418
  277052 words of memory out of 3000000
- 13658 multiletter control sequences out of 15000+200000
+ 13669 multiletter control sequences out of 15000+200000
  51152 words of font info for 44 fonts, out of 3000000 for 9000
  1025 hyphenation exceptions out of 8191
- 42i,11n,43p,922b,388s stack positions out of 5000i,500n,10000p,200000b,50000s
+ 42i,11n,43p,605b,435s stack positions out of 5000i,500n,10000p,200000b,50000s
 {C:/Program Files/MiKTeX 2.9/fonts/enc/dvips/lm/lm-ec.enc}{C:/Program Files/M
 iKTeX 2.9/fonts/enc/dvips/lm/lm-mathsy.enc}{C:/Program Files/MiKTeX 2.9/fonts/e
 nc/dvips/lm/lm-rm.enc}<C:/Program Files/MiKTeX 2.9/fonts/type1/public/lm/lmbx12
@@ -845,9 +861,9 @@ nc/dvips/lm/lm-rm.enc}<C:/Program Files/MiKTeX 2.9/fonts/type1/public/lm/lmbx12
 fonts/type1/public/lm/lmr17.pfb><C:/Program Files/MiKTeX 2.9/fonts/type1/public
 /lm/lmri12.pfb><C:/Program Files/MiKTeX 2.9/fonts/type1/public/lm/lmsy8.pfb><C:
 /Program Files/MiKTeX 2.9/fonts/type1/public/lm/lmtt12.pfb>
-Output written on trs_report.pdf (5 pages, 1553085 bytes).
+Output written on trs_report.pdf (7 pages, 2518181 bytes).
 PDF statistics:
- 134 PDF objects out of 1000 (max. 8388607)
- 31 named destinations out of 1000 (max. 500000)
- 75 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 173 PDF objects out of 1000 (max. 8388607)
+ 49 named destinations out of 1000 (max. 500000)
+ 85 words of extra memory for PDF output out of 10000 (max. 10000000)
 

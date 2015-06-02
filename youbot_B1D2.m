@@ -248,8 +248,8 @@ while true,
             trajmap(sub2ind(size(map),traj_indices(:,1),traj_indices(:,2))) = 2;
         end
         trajmap(a,b) = 3;
-        imagesc(trajmap);
-        drawnow;
+        %imagesc(trajmap);
+        %drawnow;
         
         if initialRotation % Complete rotation at start
             rotVel = 5;
@@ -267,8 +267,8 @@ while true,
                     fsm = 'go to table/basket';
                     explorationComplete = true;
                     figure
-                    imagesc(map);
-                    drawnow;
+                    %imagesc(map);
+                    %drawnow;
                 else
                     s = size(traj);
                     if s(1) > 1
@@ -277,6 +277,9 @@ while true,
                         s = size(traj);
                     end
                     index = 1;
+                    
+                    figure
+                    plot(traj(:,1),traj(:,2));
                     
                     needNewTraject = false;
                     traj_timer = tic;
@@ -289,8 +292,8 @@ while true,
                 trajmap = map;
                 trajmap(sub2ind(size(map),traj_indices(:,1),traj_indices(:,2))) = 2;
                 trajmap(a,b) = 3;
-                imagesc(trajmap);
-                drawnow;
+                %imagesc(trajmap);
+                %drawnow;
                  
                 x = pose(1);
                 y = pose(2);

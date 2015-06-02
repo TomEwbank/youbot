@@ -141,7 +141,7 @@ We've thus adressed the milestones A1, B1, C2 and D2 of the project statement\ci
 
 \subsection{Map exploration}
 \paragraph{}
-The youBot stores a matrix representing the the map. The elements of this matrix can have three different values. One value represent the fact that a cell of the map hasn't been explored yet, another means that it has been, and the last one implies the presence of an obstacle in the cell. During its exploration, the youBot can thus gather the data supplied by its Hokuyo sensors and update the values of this matrix. These data comes in the form of a series of points, in the reference frame of the youBot, that indicate where the range of the sensor stopped, and if it encountered an obstacle or not. Because the youBot knows its accurate position in the map, it can simply transpose these coordinates into the reference frame of the map, and then update the matrix accordingly, including of course all the points in the area swept by the sensor, not only those delimiting its range.   
+The youBot stores a matrix representing the the map. The elements of this matrix can have three different values. One value represent the fact that a cell of the map hasn't been explored yet, another means that it has been, and the last one implies the presence of an obstacle in the cell. During its exploration, the youBot can thus gather the data supplied by its Hokuyo sensors and update the values of this matrix easily because it knows its accurate postion in the map.   
 
 \paragraph{} 
 Now that we've explained how the youBot represents and updates its map, it remains to describe how the youBot will achieve to explore its environment entirely. Our exploration algorithm is the following:
@@ -162,7 +162,19 @@ Now that we've explained how the youBot represents and updates its map, it remai
 \subsection{Trajectories}
 
 \paragraph{}
-The trajectories of the youBot are calculated thanks to the (partial) map and the distance transform function from Peter Corke's robotics toolbox\cite{CorkeRTB}. 
+The trajectories of the youBot are calculated thanks to the (partial) map and the distance transform function from Peter Corke's robotics toolbox\cite{CorkeRTB}. They are on the form of ordered series of points through which the youBot has to go. The more points the trajectory contains, the more fluid the trajectory is, so based on the fluidity or precision we want to have, we can increase the number of points of a trajectory. 
+
+\paragraph{}
+To make the robot follows a trajectory, we used similar controllers to the ones presented in section 4.2.3 of Peter Corke's book "Robotics, vision and control"\cite{CorkeBook}. These controllers allows us to define a global velocity and a rotation velocity at each timestep but, in addition to that, we took advantage of the omnidirectional wheels of the youBot and turned the global velocity into a velocity vector, which components are the left-right and the forward-back velocities, as shown on figure \ref{velocities}.
+
+\begin{figure}[h]
+	\centering
+		\includegraphics[width=10cm]{velocities.png}
+	\caption{youBot omnidirectional velocity vector}
+	\label{velocities}
+\end{figure}
+
+\FloatBarrier
 
 \subsection{Locating an identifying baskets}
 
@@ -172,9 +184,29 @@ The trajectories of the youBot are calculated thanks to the (partial) map and th
 \subsection{Moving objects}
 
 \paragraph{} 
+The process that we've implemented to achieve this purpose is the following:
+\begin{enumerate}
+\item The youBot goes to the area of the table. This is done by defining some points that are at a certain distance around the table, and selecting the closest one as a goal.
+\item When it reached this goal, the youBot rotates in order to position itself with its direction perpendicular to the line going through its center and the center of the table. There is however two direction that follows this criteria, so we chose the one that is pointing in the clockwise direction around the table (see figure \ref{tangent}).
+\item The youBot then get close to the table using left-right velocity only.
+\item When it is close enough, it takes a single 3D image with a large angle of view to detect objects above the table. Only the points that are above the table, and in a certain range, are kept.
+\item Whether objects are detected or not, every moves that the youBot will make at this step and the three next ones will follow a circular path defined around the table. If nothing is detected, the youBot goes a bit further and starts again from step 4, unless this has been repeated enough times to make a complete turn of the table and realize that there is no object left on it. In that case the job is done. If, however, the 3D image contains any points, the youBot selects the closest one and moves to align its camera with that point and the center of the table.
+\item The camera is oriented to the center of the table and takes once again a single 3D image, this time with a shorter angle of view, and a small range, in order to see only one object.
+\item The youBot then projects the points of this 3D image in the plane of the table and uses an implementation of the RANSAC algorithm\cite{RANSAC} to recognize circles of a given radius. If there is a match, the youBots then knows that the object is cylindrical but also knows the position of the center of this cylinder. If there is no match, the object is then box-shaped and each coordinate of the center of the box can be approximated by taking the extreme values and calculating their mean. 
+\item The youBot moves to align its arm reference point with the center of the object and the center of the table.
+\item The youBot places its arm tip in front of the box using V-REP IK.
+\item It moves its arm slowly along a straight line trajectory going through the center of the object, still using V-REP IK, and then grab it.
+\item The youBot then moves its arm to a configuration where the object will be just above the youBot platform and near the camera, so that it can take an RGB picture and guess the color of the object in the gripper. This guessing is performed by looking at only one particular point of the picture that is supposed to always belong to the object. It can lead to an unexpected color if the youBot somehow failed to grab anything and in that case, it goes back to step 4.   
+\item The youBot moves its arm to its transport configuration, with the object still into the gripper, and goes to the appropriate basket to throw it. Then it goes back to step 1. Going to the baskets and getting close to them is performed with the same technique as for a table.
 
+\end{enumerate}
 
-
+\begin{figure}[h]
+	\centering
+		\includegraphics[width=1.00\textwidth]{tangent.png}
+	\caption{youBot positionning before getting closer to the table}
+	\label{tangent}
+\end{figure}
 
 \clearpage
 \begin{thebibliography}{9}
@@ -191,7 +223,9 @@ Corke, Peter. \textit{Robotics, Vision \& Control.} 2011.\\
 Corke, Peter. \textit{Robotics Toolbox for MATLAB}. Release 9. \\
 \url{http://www.petercorke.com/Robotics_Toolbox.html}
 
-
+\bibitem{RANSAC}
+Zuliani, Marco. \textit{RANSAC toolBox.}
+\url{https://github.com/RANSAC/RANSAC-Toolbox}
 
 
 \end{thebibliography}

@@ -1,0 +1,86 @@
+clear
+clc
+
+load('hokuyo.mat')
+X = [x;y];
+
+% noise
+sigma = 0.02;
+% the circle to identify
+n_c_star = 3;
+
+% set RANSAC options
+options.epsilon = 1e-6;
+options.P_inlier = 1-1e-4;
+options.sigma = sigma;
+options.est_fun = @estimate_circle;
+options.man_fun = @error_circle;
+options.mode = 'MSAC';
+options.Ps = [];
+options.notify_iters = [];
+options.min_iters = 100;
+options.fix_seed = false;
+options.reestimate = true;
+options.stabilize = false;
+
+% here we set theradius of the circle that we want to detect
+radii = 0.8/2;
+options.parameters.radius = radii;
+
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% RANSAC
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% run RANSAC
+[results, options] = RANSAC(X, options);
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Results Visualization 1er match
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+figure;
+hold on
+plot(X(1,:), X(2, :), '+r');
+plot(X(1,results.CS), X(2, results.CS), 'sg');
+xlabel('x');
+ylabel('y');
+axis equal tight
+grid on
+
+phi = linspace(-pi,pi,128);
+
+x_c = results.Theta(1) + radii*cos(phi);
+y_c = results.Theta(2) + radii*sin(phi);
+plot([x_c x_c(1)], [y_c y_c(1)], 'g', 'LineWidth', 2)
+
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Suppression des points du  1er match
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+x2 = x(not(results.CS));
+y2 = y(not(results.CS));
+X = [x2;y2];
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% RANSAC
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% run RANSAC
+[results, options] = RANSAC(X, options);
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Results Visualization 2eme match
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+figure;
+hold on
+plot(X(1,:), X(2, :), '+r');
+plot(X(1,results.CS), X(2, results.CS), 'sg');
+xlabel('x');
+ylabel('y');
+axis equal tight
+grid on
+
+phi = linspace(-pi,pi,128);
+
+x_c = results.Theta(1) + radii*cos(phi);
+y_c = results.Theta(2) + radii*sin(phi);
+plot([x_c x_c(1)], [y_c y_c(1)], 'g', 'LineWidth', 2)

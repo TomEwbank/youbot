@@ -1,4 +1,4 @@
-function [pts contacts] = testbot()
+function pts = testbot()
 
 % youbot Illustrates the V-REP Matlab bindings.
 
@@ -74,13 +74,13 @@ function [pts contacts] = testbot()
    
    disp('Starting robot');
    
-%    % Set the arm to its starting configuration:
-%    %res = vrep.simxPauseCommunication(id, true); vrchk(vrep, res);
-%    for i = 1:5,
-%    [res, j] = vrep.simxGetJointPosition(id, h.armJoints(i), vrep.simx_opmode_oneshot_wait);
-%         vrchk(vrep, res, true);
-%         j
-%    end
+   % Set the arm to its starting configuration:
+   %res = vrep.simxPauseCommunication(id, true); vrchk(vrep, res);
+   for i = 1:5,
+   [res, j] = vrep.simxGetJointPosition(id, h.armJoints(i), vrep.simx_opmode_oneshot_wait);
+        vrchk(vrep, res, true);
+        j
+   end
    %res = vrep.simxPauseCommunication(id, false); vrchk(vrep, res);
    
    plotData = true;
@@ -124,76 +124,72 @@ function [pts contacts] = testbot()
                                                      vrep.simx_opmode_buffer);
    vrchk(vrep, res, true);
    
-   % Read data from the Hokuyo sensor:
-   [pts contacts] = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer);
-   break
-   
    %tipEuler
    
    
-%    
-%    if a
-%    T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
-%         p = [-1.325;-5.815;0.2101];
-%         p(3) = p(3)-youbotPos(3);
-%         p(1:2) = homtrans(inv(T), p(1:2));
-%    o = [-pi; 0; 0];
-%    
-%    vrep.simxSetIntegerSignal(id, 'km_mode', 2, vrep.simx_opmode_oneshot_wait);
-%         vrchk(vrep, res, true);
-%         
-%         vrep.simxSetObjectOrientation(id, h.otarget, h.r22, o,...
-%             vrep.simx_opmode_oneshot_wait);
-%         vrchk(vrep, res, true);
-%         
+   
+   if a
+   T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
+        p = [-1.325;-5.815;0.2101];
+        p(3) = p(3)-youbotPos(3);
+        p(1:2) = homtrans(inv(T), p(1:2));
+   o = [-pi; 0; 0];
+   
+   vrep.simxSetIntegerSignal(id, 'km_mode', 2, vrep.simx_opmode_oneshot_wait);
+        vrchk(vrep, res, true);
+        
+        vrep.simxSetObjectOrientation(id, h.otarget, h.r22, o,...
+            vrep.simx_opmode_oneshot_wait);
+        vrchk(vrep, res, true);
+        
+        vrep.simxSetObjectPosition(id, h.ptarget, h.ref, p,...
+            vrep.simx_opmode_oneshot_wait);
+        vrchk(vrep, res, true);
+        
+        gripTargDist = 1;
+        while gripTargDist > 0.005
+            [res, tipPos] = vrep.simxGetObjectPosition(id, h.ptip, h.ref,...
+                vrep.simx_opmode_oneshot_wait);
+            vrchk(vrep, res, true);
+            gripTargDist = sqrt((p(1)-tipPos(1))^2+(p(2)-tipPos(2))^2);
+        end
+  
+%        p(3) = p(3)-youbotPos(3);
 %         vrep.simxSetObjectPosition(id, h.ptarget, h.ref, p,...
 %             vrep.simx_opmode_oneshot_wait);
 %         vrchk(vrep, res, true);
-%         
-%         gripTargDist = 1;
-%         while gripTargDist > 0.005
-%             [res, tipPos] = vrep.simxGetObjectPosition(id, h.ptip, h.ref,...
-%                 vrep.simx_opmode_oneshot_wait);
-%             vrchk(vrep, res, true);
-%             gripTargDist = sqrt((p(1)-tipPos(1))^2+(p(2)-tipPos(2))^2);
-%         end
-%   
-% %        p(3) = p(3)-youbotPos(3);
-% %         vrep.simxSetObjectPosition(id, h.ptarget, h.ref, p,...
-% %             vrep.simx_opmode_oneshot_wait);
-% %         vrchk(vrep, res, true);
-%         
-%         a = false;
-%    end 
-%    
-%    if b
-%     forwBackVel = -5
-%      vrep.simxSetIntegerSignal(id, 'gripper_open', 0, vrep.simx_opmode_oneshot);
-%         vrchk(vrep, res, true);
-%         pause(2);
-%         b = false
-%    end
-%    
-%    [res, Pos] = vrep.simxGetObjectPosition(id, h.ref, h.armRef,...
-%                 vrep.simx_opmode_oneshot_wait);
-%             vrchk(vrep, res, true);
-%            Pos
-%    pause(10);
-%    % Update wheel velocities
-%    res = vrep.simxPauseCommunication(id, true); vrchk(vrep, res);
-%    vrep.simxSetJointTargetVelocity(id, h.wheelJoints(1),...
-%                                    -forwBackVel-leftRightVel+rotVel,...
-%                                    vrep.simx_opmode_oneshot); vrchk(vrep, res);
-%    vrep.simxSetJointTargetVelocity(id, h.wheelJoints(2),...
-%                                    -forwBackVel+leftRightVel+rotVel,...
-%                                    vrep.simx_opmode_oneshot); vrchk(vrep, res);
-%    vrep.simxSetJointTargetVelocity(id, h.wheelJoints(3),...
-%                                    -forwBackVel-leftRightVel-rotVel,...
-%                                    vrep.simx_opmode_oneshot); vrchk(vrep, res);
-%    vrep.simxSetJointTargetVelocity(id, h.wheelJoints(4),...
-%                                    -forwBackVel+leftRightVel-rotVel,...
-%                                    vrep.simx_opmode_oneshot); vrchk(vrep, res);
-%    res = vrep.simxPauseCommunication(id, false); vrchk(vrep, res);
+        
+        a = false;
+   end 
+   
+   if b
+    forwBackVel = -5
+     vrep.simxSetIntegerSignal(id, 'gripper_open', 0, vrep.simx_opmode_oneshot);
+        vrchk(vrep, res, true);
+        pause(2);
+        b = false
+   end
+   
+   [res, Pos] = vrep.simxGetObjectPosition(id, h.ref, h.armRef,...
+                vrep.simx_opmode_oneshot_wait);
+            vrchk(vrep, res, true);
+           Pos
+   pause(10);
+   % Update wheel velocities
+   res = vrep.simxPauseCommunication(id, true); vrchk(vrep, res);
+   vrep.simxSetJointTargetVelocity(id, h.wheelJoints(1),...
+                                   -forwBackVel-leftRightVel+rotVel,...
+                                   vrep.simx_opmode_oneshot); vrchk(vrep, res);
+   vrep.simxSetJointTargetVelocity(id, h.wheelJoints(2),...
+                                   -forwBackVel+leftRightVel+rotVel,...
+                                   vrep.simx_opmode_oneshot); vrchk(vrep, res);
+   vrep.simxSetJointTargetVelocity(id, h.wheelJoints(3),...
+                                   -forwBackVel-leftRightVel-rotVel,...
+                                   vrep.simx_opmode_oneshot); vrchk(vrep, res);
+   vrep.simxSetJointTargetVelocity(id, h.wheelJoints(4),...
+                                   -forwBackVel+leftRightVel-rotVel,...
+                                   vrep.simx_opmode_oneshot); vrchk(vrep, res);
+   res = vrep.simxPauseCommunication(id, false); vrchk(vrep, res);
    
    % Make sure that we do not go faster that the simulator
    elapsed = toc;

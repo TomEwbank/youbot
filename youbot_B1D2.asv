@@ -111,20 +111,19 @@ inst(5).colorname = 'red';
 
 % set RANSAC options for table/basket recognition
 table_options.epsilon = 1e-6;
-table_options.P_inlier = 1;
+table_options.P_inlier = 1-1e-4;
 %table_options.sigma = sigma;
 table_options.est_fun = @estimate_circle;
 table_options.man_fun = @error_circle;
 table_options.mode = 'MSAC';
 table_options.Ps = [];
 table_options.notify_iters = [];
-table_options.min_iters = 100;
-%table_options.max_iters = 5000;
+options.min_iters = 100;
 table_options.fix_seed = false;
 table_options.reestimate = true;
 table_options.stabilize = false;
-table_options.T_noise_squared = 0.02;
-table_options.parameters.radius = d_table/2-0.01;
+table_options.T_noise_squared = 0.25;
+table_options.parameters.radius = d_table/2;
 
 
 % set RANSAC options for cylinder recognition
@@ -238,7 +237,7 @@ while true,
         end
         
         T = se2(youbotPos(1), youbotPos(2), 0);
-        table1 = homtrans(T,table1)'
+        table1 = homtrans(T,table1)';
         table1_traj = circle(table1, r_table_traj, 'n', n_table_traj);
         table1_zone = circle(table1, r_table_zone, 'n', n_table_zone);
         goal = table1;
@@ -316,7 +315,7 @@ while true,
         % Every 6 seconds, stores the points cloud from the Hokuyo sensor
         % do check at the end of the trajectory if any baskets were 
         % encountered
-        if toc(hokuyo_timer) > 2 && k ~=0
+        if toc(hokuyo_timer) > 6
             hokuyo_timer = tic;
             hokuyoBuffer(k) = struct('x',x_pts,'y',y_pts,'pose',pose);
             k = k +1;
@@ -375,9 +374,9 @@ while true,
                     end
                     index = 1;
                     
-%                     figure
-%                     plot(traj(:,1),traj(:,2));
-%                     
+                    figure
+                    plot(traj(:,1),traj(:,2));
+                    
                     needNewTraject = false;
                     traj_timer = tic;
                     prev_t = 0;
@@ -387,20 +386,17 @@ while true,
                 L = length(hokuyoBuffer);
                 k = 1;
                 while k <= L && not(isempty(hokuyoBuffer(k).x))
-                    x_pts = hokuyoBuffer(k).x;
-                    y_pts = hokuyoBuffer(k).y;
                     ransac_failed = true;
                     while ransac_failed
                         ransac_failed = false;
                         try
-                            [results, options] = RANSAC([x_pts;y_pts], table_options);
+                            [results, options] = RANSAC([hokuyoBuffer(k).x;hokuyoBuffer(k).y], table_options);
                         catch e
                             display(e)
                             ransac_failed = true;
                         end
                     end
                     
-                    if length(results.Theta)>0
                     figure;
                     hold on
                     plot(x_pts, y_pts, '+r');
@@ -415,7 +411,7 @@ while true,
                     x_c = results.Theta(1) + 0.4*cos(phi);
                     y_c = results.Theta(2) + 0.4*sin(phi);
                     plot([x_c x_c(1)], [y_c y_c(1)], 'g', 'LineWidth', 2)
-                    end
+                    
                     k = k+1
                 end
                 k = 1;

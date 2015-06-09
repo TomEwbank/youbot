@@ -6,13 +6,11 @@ X = [x;y];
 
 % noise
 sigma = 0.02;
-% the circle to identify
-n_c_star = 3;
 
 % set RANSAC options
 options.epsilon = 1e-6;
 options.P_inlier = 1-1e-4;
-options.sigma = sigma;
+%options.sigma = sigma;
 options.est_fun = @estimate_circle;
 options.man_fun = @error_circle;
 options.mode = 'MSAC';
@@ -22,6 +20,7 @@ options.min_iters = 100;
 options.fix_seed = false;
 options.reestimate = true;
 options.stabilize = false;
+options.T_noise_squared = 0.25;
 
 % here we set theradius of the circle that we want to detect
 radii = 0.8/2;

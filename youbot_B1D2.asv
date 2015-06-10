@@ -1,6 +1,6 @@
 function hokuyoSamples = youbot_B1D2()
 hs = 1;
-hokuyoSamples(hs) = struct('x_pts',[],'y_pts',[]); 
+hokuyoSamples(hs) = struct('x_pts',[],'y_pts',[]);
 
 
 % This function controls the youbot to create a map of the
@@ -654,7 +654,7 @@ while true,
         x_pts = pts(1,contacts); 
         y_pts = pts(2,contacts);
         
-        hokuyoSamples(hs) = struct('x_pts',x_pts,'y_pts',y_pts);
+        hokuyoSamples(hs) = struct('x_pts',x_pts,'x_pts',x_pts);
         hs  = hs+1;
         
         ransac_failed = true;

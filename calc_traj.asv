@@ -84,6 +84,7 @@ if meters
 elseif(dx.occgrid(dest(2), dest(1)) == 1)
     % if destination considered as an obstacle in the inflated map,
     % need to find a close free point to replace it
+    % (not authorized
     a = dest(2)-2;
     offset_x = 3;
     offset_y = 3;

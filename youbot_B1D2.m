@@ -54,7 +54,7 @@ d_basket = d_table;
 h_basket = h_table;
 r_table_traj = d_table/2+0.25; % radius of a circular trajectory around a table/basket
 n_table_traj = 200; % number of points that constitutes the previous trajectory
-r_table_zone = d_table/2+0.4; % radius of circle delimiting a zone where the robot is considered near the table/basket
+r_table_zone = d_table/2+0.35; % radius of circle delimiting a zone where the robot is considered near the table/basket
 n_table_zone = 15; % number of points that constitutes the previous circle
 
 % Position of the camera in the reference frame of the youbot
@@ -123,8 +123,8 @@ table_options.max_iters = 1000;
 table_options.fix_seed = false;
 table_options.reestimate = true;
 table_options.stabilize = false;
-table_options.T_noise_squared = 0.01;
-table_options.parameters.radius = d_table/2-0.01;
+table_options.T_noise_squared = 0.005;
+table_options.parameters.radius = d_table/2-0.015;
 
 
 % set RANSAC options for cylinder recognition
@@ -183,6 +183,15 @@ for i = 1:5,
 end
 res = vrep.simxPauseCommunication(id, false); vrchk(vrep, res);
 
+% Get the youbot position and orientation before starting
+% It will be used to check for errounous responses from v-rep
+    [res, prevYoubotPos] = vrep.simxGetObjectPosition(id, h.ref, -1,...
+        vrep.simx_opmode_buffer);
+    vrchk(vrep, res, true);
+    [res, prevYoubotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1,...
+        vrep.simx_opmode_buffer);
+    vrchk(vrep, res, true);
+
 % Make sure everything is settled before we start
 pause(2);
 
@@ -194,13 +203,28 @@ while true,
         error('Lost connection to remote API.');
     end
     
-    % Get the youbot position and orientation at every iteration
-    [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1,...
-        vrep.simx_opmode_oneshot_wait);
-    vrchk(vrep, res, true);
-    [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1,...
-        vrep.simx_opmode_oneshot_wait);
-    vrchk(vrep, res, true);
+    vrepErroneousBehavior = true;
+    while vrepErroneousBehavior
+        % Get the youbot position and orientation at every iteration
+        [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1,...
+            vrep.simx_opmode_buffer);
+        vrchk(vrep, res, true);
+        [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1,...
+            vrep.simx_opmode_buffer);
+        vrchk(vrep, res, true);
+        youbot_deplacement = sqrt((prevYoubotPos(1)-youbotPos(1))^2+(prevYoubotPos(2)-youbotPos(2))^2);
+        %youbot_rotation = abs(prevYoubotEuler(3)-youbotEuler(3));
+        if youbot_deplacement < 0.2 %&& youbot_rotation < pi/2
+            vrepErroneousBehavior = false;
+            prevYoubotPos = youbotPos;
+            %prevYoubotEuler = youbotEuler;
+        else
+            display('v-rep erroneous behavior');
+            youbot_deplacement
+            youbotPos
+            %youbot_rotation
+        end
+    end
     
     if not(explorationComplete)
         % Get the data from the Hokuyo sensors
@@ -285,33 +309,41 @@ while true,
             ransac_failed = false;
             try
                 [results, options] = RANSAC([x_pts;y_pts], table_options);
-            catch
+            catch e
+                display(e)
                 ransac_failed = true;
             end
         end
         
-        if results.Theta(1) < 0
-            table1 = [results.Theta(1);results.Theta(2)];
-        else
-            x_pts = x_pts(not(results.CS));
-            y_pts = y_pts(not(results.CS));
-            ransac_failed = true;
-            while ransac_failed
-                ransac_failed = false;
-                try
-                    [results, options] = RANSAC([x_pts;y_pts], table_options);
-                catch
-                    ransac_failed = true;
-                end
+        Theta1 = results.Theta;
+        x_pts = x_pts(not(results.CS));
+        y_pts = y_pts(not(results.CS));
+        ransac_failed = true;
+        while ransac_failed
+            ransac_failed = false;
+            try
+                [results, options] = RANSAC([x_pts;y_pts], table_options);
+            catch e
+                display(e)
+                ransac_failed = true;
             end
-            table1 = [results.Theta(1);results.Theta(2)];
         end
+        
+        if Theta1(1) < 0
+            table1 = [Theta1(1);Theta1(2)];
+            table2 = [results.Theta(1);results.Theta(2)];
+        else
+            table2 = [Theta1(1);Theta1(2)];
+            table1 = [results.Theta(1);results.Theta(2)];
+        end      
         
         T = se2(youbotPos(1), youbotPos(2), 0);
         table1 = homtrans(T,table1)'
         table1_traj = circle(table1, r_table_traj, 'n', n_table_traj);
         table1_zone = circle(table1, r_table_zone, 'n', n_table_zone);
         goal = table1;
+        
+        table2 = homtrans(T,table2)'
         
         fsm = 'exploration';
         
@@ -320,7 +352,7 @@ while true,
         
         
         if initialRotation % Complete rotation at start
-            rotVel = 5;
+            rotVel = 5
             if toc(traj_timer) > 6,
                 rotVel = 0;
                 initialRotation = false;
@@ -422,8 +454,8 @@ while true,
             drawnow;
             
             %Selects the 4 nearest corner
-            shortest_corner_dist = [100;100;100];
-            corner_index = [0 0; 0 0; 0 0];
+            shortest_corner_dist = [100;100;100;100];
+            corner_index = [0 0; 0 0; 0 0; 0 0];
             j = 1;
             for i = 1:length(corners(:,1))
                 
@@ -434,8 +466,18 @@ while true,
                 % Reminder: a & b are the  previously calculated indices of the
                 % youbot's position on the map
                 
+                % A corner near a table is not valid so need to check the
+                % distance between the corner and the center of the tables
+                corn_coord = [corners(i,2) corners(i,1)]*cell_size-cell_size/2-(d+2*cell_size);
+%                 table1_ind = floor((table1+d)/cell_size)+1;
+%                 table2_ind = floor((table2+d)/cell_size)+1;
+                corner_table1_dist = sqrt((corn_coord(1)-table1(1))^2+(corn_coord(2)-table1(2))^2);
+                corner_table2_dist = sqrt((corn_coord(1)-table2(1))^2+(corn_coord(2)-table2(2))^2);
+                
                 [max_dist, max_ind] = max(shortest_corner_dist)
-                if corner_dist < max_dist
+                if corner_dist < max_dist &&...
+                   corner_table1_dist > d_table/2+0.4 &&...
+                   corner_table2_dist > d_table/2+0.4
                     
                     % Check if it is a valid location for a basket, it will be
                     % if there is at most 3 free cells surrounding it
@@ -461,7 +503,7 @@ while true,
                         end
                         
                         % Check if the corner hasn't been checked yet
-                        cornerPos = corner_index(max_ind,:)*cell_size-cell_size/2-d+2*cell_size;
+                        cornerPos = corner_index(max_ind,:)*cell_size-cell_size/2-(d+2*cell_size);
                         ic = 1;
                         while visitedCorners(ic,1) ~= 0
                             if sqrt((visitedCorners(ic,1)-cornerPos(1))^2+(visitedCorners(ic,2)-cornerPos(2))^2) < 0.6
@@ -476,6 +518,7 @@ while true,
             end
             corner_num = 1;
             init_corner_traj = true;
+            startChecking = false;
         end
         
         if init_corner_traj
@@ -490,12 +533,11 @@ while true,
                 traj_timer = tic;
                 prev_t = 0;
                 prev_e = 0.4;
-                startChecking = false;
                 needToCheck = true;
             else
                 needToCheck = false;
                 corner_num = corner_num + 1;
-                if corner_num == 4
+                if corner_num == 5
                     fsm = 'exploration';
                 end
             end
@@ -507,6 +549,22 @@ while true,
         end
         
         if needToCheck
+            
+            % Check that the corner is still one
+            temp_map = ones(64,64);
+            temp_map(3:62,3:62) = map;
+            temp_map(temp_map == -1) = 1;
+            surrounding_cells = [temp_map(corner_index(corner_num,1)+1,corner_index(corner_num,2));
+            temp_map(corner_index(corner_num,1),corner_index(corner_num,2)+1);
+            temp_map(corner_index(corner_num,1)+1,corner_index(corner_num,2)+1);
+            temp_map(corner_index(corner_num,1)-1,corner_index(corner_num,2)-1);
+            temp_map(corner_index(corner_num,1)-1,corner_index(corner_num,2));
+            temp_map(corner_index(corner_num,1),corner_index(corner_num,2)-1);
+            temp_map(corner_index(corner_num,1)-1,corner_index(corner_num,2)+1);
+            temp_map(corner_index(corner_num,1)+1,corner_index(corner_num,2)-1)];
+            
+            if 8-sum(surrounding_cells) > 4 
+            
             x = youbotPos(1);
             y = youbotPos(2);
             theta = youbotEuler(3);
@@ -515,9 +573,18 @@ while true,
             y_star = traj(index,2);
             theta_star = atan2((y_star - y),(x_star - x))+pi/2;
             
+            
+%             % Check if we are not running to an obstacle
+%             stopTraject = false;
+%             i_star = floor((x_star+d)/cell_size)+1;
+%             j_star = floor((y_star+d)/cell_size)+1;
+%             if map(i_star,j_star) == 1
+%                 stopTraject = true;
+%             end
+            
             t = toc(traj_timer);
             e = sqrt((x_star-x)^2+(y_star-y)^2)-d_star;
-            if e > 0.01
+            if e > 0.01 && not(stopTraject)
                 v_star = 20*e + 30*(abs(t-prev_t)*abs(e-prev_e)/2);
                 alpha = angdiff(theta_star, theta);
                 gamma = -theta+atan2((y_star - y),(x_star - x));
@@ -527,7 +594,13 @@ while true,
                 
             else
                 index = index + 1;
-                if index > s(1)
+                if stopTraject
+                    init_corner_traj = true;
+                    corner_num = corner_num + 1;
+                    forwBackVel = 0;
+                    leftRightVel = 0;
+                    rotVel = 0;
+                elseif index > s(1) 
                     fsm = 'Identify basket';
                     forwBackVel = 0;
                     leftRightVel = 0;
@@ -569,24 +642,24 @@ while true,
             y_c = results.Theta(2) + 0.4*sin(phi);
             plot([x_c x_c(1)], [y_c y_c(1)], 'g', 'LineWidth', 2)
             
-            if sum(results.CS) > 100
+            if sum(results.CS) > 70
                 corner_center = results.Theta;
                 corner_center_defined = true;
                 % Convert the coordinates from the frame of the youbot to the
                 % main frame
-                [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1,...
-                    vrep.simx_opmode_oneshot_wait);
-                vrchk(vrep, res, true);
-                [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1,...
-                    vrep.simx_opmode_oneshot_wait);
-                vrchk(vrep, res, true);
+%                 [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1,...
+%                     vrep.simx_opmode_oneshot_wait);
+%                 vrchk(vrep, res, true);
+%                 [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1,...
+%                     vrep.simx_opmode_oneshot_wait);
+%                 vrchk(vrep, res, true);
                 T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
-                corner_center = homtrans(T,corner_center')';
+                corner_center = homtrans(T,corner_center')'
             end
         end
         
         if not(corner_center_defined)
-            corner_center = corner_index(corner_num,:)*cell_size-cell_size/2-d+2*cell_size;
+            corner_center = corner_index(corner_num,:)*cell_size-cell_size/2-(d+2*cell_size);
         end
           
         % Add the visited corner to the list
@@ -596,7 +669,7 @@ while true,
         fsm = 'check corner';
         init_corner_traj = true;
         corner_num = corner_num + 1;
-        if corner_num == 4
+        if corner_num == 5
             fsm = 'exploration';
         end
         

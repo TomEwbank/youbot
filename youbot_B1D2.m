@@ -112,18 +112,18 @@ inst(5).colorname = 'red';
 % set RANSAC options for table/basket recognition
 table_options.epsilon = 1e-6;
 table_options.P_inlier = 1;
-%table_options.sigma = sigma;
+table_options.sigma = 0.02;
 table_options.est_fun = @estimate_circle;
 table_options.man_fun = @error_circle;
 table_options.mode = 'MSAC';
 table_options.Ps = [];
 table_options.notify_iters = [];
 table_options.min_iters = 100;
-%table_options.max_iters = 5000;
+table_options.max_iters = 1000;
 table_options.fix_seed = false;
 table_options.reestimate = true;
 table_options.stabilize = false;
-table_options.T_noise_squared = 0.02;
+table_options.T_noise_squared = 0.01;
 table_options.parameters.radius = d_table/2-0.01;
 
 
@@ -161,6 +161,8 @@ searching_counter = 0;
 box_nb = 1;
 k = 0;
 hokuyoBuffer = struct('x',[],'y',[],'pose',[]);
+visitedCorners = zeros(50,2);
+corner_index = 0;
 
 % initialisation of the map
 [X,Y] = meshgrid(-5:cell_size:5,-5.5:cell_size:2.5);
@@ -168,7 +170,6 @@ X = reshape(X, 1, []);
 Y = reshape(Y, 1, []);
 colormap([0 104/255 139/255; 0 1 127/255; 205/255 38/255 38/255; 0 0 0; 1 0.5 0]);
 map = zeros((d/cell_size)*2); map(:) = -1;
-
 
 disp('Starting robot');
 
@@ -195,11 +196,80 @@ while true,
     
     % Get the youbot position and orientation at every iteration
     [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1,...
-        vrep.simx_opmode_buffer);
+        vrep.simx_opmode_oneshot_wait);
     vrchk(vrep, res, true);
     [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1,...
-        vrep.simx_opmode_buffer);
+        vrep.simx_opmode_oneshot_wait);
     vrchk(vrep, res, true);
+    
+    if not(explorationComplete)
+        % Get the data from the Hokuyo sensors
+        [pts, contacts] = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer);
+        in = inpolygon(X, Y, [h.hokuyo1Pos(1) pts(1,:) h.hokuyo2Pos(1)],...
+            [h.hokuyo1Pos(2) pts(2,:) h.hokuyo2Pos(2)]);
+        
+        
+        pose = [youbotPos(1) youbotPos(2) youbotEuler(3)];
+        
+        % a and b are the indices corresponding to the youbot position on
+        % the map
+        a = floor((pose(1)+d)/cell_size)+1;
+        b = floor((pose(2)+d)/cell_size)+1;
+        
+        % Define the starting position of the youbot as the point where the
+        % floodfill operations will start from. (For more information about
+        % these floodfill operation, check in the "planNextMove" function)
+        if(fill_point(1) == -1)
+            fill_point = [a b]
+        end
+        
+        % Mark the robot's position as observed
+        if map(a, b) ~= 1
+            map(a, b) = 0;
+        end
+        if map(a+1, b) ~= 1
+            map(a+1, b) = 0;
+        end
+        if map(a, b+1) ~= 1
+            map(a, b+1) = 0;
+        end
+        if map(a+1, b+1) ~= 1
+            map(a+1, b+1) = 0;
+        end
+        if map(a+1, b-1) ~= 1
+            map(a+1, b-1) = 0;
+        end
+        if map(a-1, b+1) ~= 1
+            map(a-1, b+1) = 0;
+        end
+        if map(a-1, b-1) ~= 1
+            map(a-1, b-1) = 0;
+        end
+        if map(a-1, b) ~= 1
+            map(a-1, b) = 0;
+        end
+        if map(a, b-1) ~= 1
+            map(a, b-1) = 0;
+        end
+        
+        x_pts = pts(1,contacts); 
+        y_pts = pts(2,contacts);
+        
+        % update the map
+        map = ptsToCellmap(X(in), Y(in), x_pts, y_pts, map,...
+            cell_size,pose,d,true);
+        
+        % Display the map along with the youbot position and trajectory
+        trajmap = map;
+        if traj_indices(1) ~= -1
+            trajmap(sub2ind(size(map),traj_indices(:,1),traj_indices(:,2))) = 2;
+        end
+        figure(1)
+        trajmap(a,b) = 3;
+        imagesc(trajmap);
+        drawnow;
+    end
+    
     if strcmp(fsm, 'starting')
         % Get the position of the table with objects well separated from
         % each other, which is always at the right of the Hokuyo vision
@@ -244,109 +314,10 @@ while true,
         goal = table1;
         
         fsm = 'exploration';
-        hokuyo_timer = tic;
         
     elseif strcmp(fsm, 'exploration')
         
-        % Get the data from the Hokuyo sensors
-        [pts, contacts] = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer);
-        in = inpolygon(X, Y, [h.hokuyo1Pos(1) pts(1,:) h.hokuyo2Pos(1)],...
-            [h.hokuyo1Pos(2) pts(2,:) h.hokuyo2Pos(2)]);
         
-        
-        pose = [youbotPos(1) youbotPos(2) youbotEuler(3)];
-        
-        % a and b are the indices corresponding to the youbot position on
-        % the map
-        a = floor((pose(1)+d)/cell_size)+1;
-        b = floor((pose(2)+d)/cell_size)+1;
-        
-        % Define the starting position of the youbot as the point where the
-        % floodfill operations will start from. (For more information about
-        % these floodfill operation, check in the "planNextMove" function)
-        if(fill_point(1) == -1)
-            fill_point = [a b];
-        end
-        
-        % Mark the robot's position as observed
-        if map(a, b) ~= 1
-            map(a, b) = 0;
-        end
-        if map(a+1, b) ~= 1
-            map(a+1, b) = 0;
-        end
-        if map(a, b+1) ~= 1
-            map(a, b+1) = 0;
-        end
-        if map(a+1, b+1) ~= 1
-            map(a+1, b+1) = 0;
-        end
-        if map(a+1, b-1) ~= 1
-            map(a+1, b-1) = 0;
-        end
-        if map(a-1, b+1) ~= 1
-            map(a-1, b+1) = 0;
-        end
-        if map(a-1, b-1) ~= 1
-            map(a-1, b-1) = 0;
-        end
-        if map(a-1, b) ~= 1
-            map(a-1, b) = 0;
-        end
-        if map(a, b-1) ~= 1
-            map(a, b-1) = 0;
-        end
-        
-        x_pts = pts(1,contacts); 
-        y_pts = pts(2,contacts);
-        
-        % update the map
-        map = ptsToCellmap(X(in), Y(in), x_pts, y_pts, map,...
-            cell_size,pose,d,true);
-        
-        % Display the map along with the youbot position and trajectory
-        trajmap = map;
-        if traj_indices(1) ~= -1
-            trajmap(sub2ind(size(map),traj_indices(:,1),traj_indices(:,2))) = 2;
-        end
-        trajmap(a,b) = 3;
-%         imagesc(trajmap);
-%         drawnow;
-        
-        % Every 6 seconds, stores the points cloud from the Hokuyo sensor
-        % do check at the end of the trajectory if any baskets were 
-        % encountered
-        if toc(hokuyo_timer) > 2 && k ~=0
-            hokuyo_timer = tic;
-            hokuyoBuffer(k) = struct('x',x_pts,'y',y_pts,'pose',pose);
-            k = k +1;
-            
-%             ransac_failed = true;
-%             while ransac_failed
-%                 ransac_failed = false;
-%                 try
-%                     [results, options] = RANSAC([x_pts;y_pts], table_options);
-%                 catch
-%                     ransac_failed = true;
-%                 end
-%             end
-%             
-%             figure;
-%             hold on
-%             plot(x_pts, y_pts, '+r');
-%             plot(x_pts(results.CS), y_pts(results.CS), 'sg');
-%             xlabel('x');
-%             ylabel('y');
-%             axis equal tight
-%             grid on
-%             
-%             phi = linspace(-pi,pi,128);
-%             
-%             x_c = results.Theta(1) + 0.4*cos(phi);
-%             y_c = results.Theta(2) + 0.4*sin(phi);
-%             plot([x_c x_c(1)], [y_c y_c(1)], 'g', 'LineWidth', 2)
-        end
-            
         
         if initialRotation % Complete rotation at start
             rotVel = 5;
@@ -383,52 +354,15 @@ while true,
                     prev_t = 0;
                     prev_e = 0.4;
                 end
-                
-                L = length(hokuyoBuffer);
-                k = 1;
-                while k <= L && not(isempty(hokuyoBuffer(k).x))
-                    x_pts = hokuyoBuffer(k).x;
-                    y_pts = hokuyoBuffer(k).y;
-                    ransac_failed = true;
-                    while ransac_failed
-                        ransac_failed = false;
-                        try
-                            [results, options] = RANSAC([x_pts;y_pts], table_options);
-                        catch e
-                            display(e)
-                            ransac_failed = true;
-                        end
-                    end
-                    
-                    if length(results.Theta)>0
-                    figure;
-                    hold on
-                    plot(x_pts, y_pts, '+r');
-                    plot(x_pts(results.CS), y_pts(results.CS), 'sg');
-                    xlabel('x');
-                    ylabel('y');
-                    axis equal tight
-                    grid on
-                    
-                    phi = linspace(-pi,pi,128);
-                    
-                    x_c = results.Theta(1) + 0.4*cos(phi);
-                    y_c = results.Theta(2) + 0.4*sin(phi);
-                    plot([x_c x_c(1)], [y_c y_c(1)], 'g', 'LineWidth', 2)
-                    end
-                    k = k+1
-                end
-                k = 1;
-                hokuyoBuffer = struct('x',[],'y',[],'pose',[]);
             end
             
             if not(explorationComplete)
                 trajmap = map;
                 trajmap(sub2ind(size(map),traj_indices(:,1),traj_indices(:,2))) = 2;
                 trajmap(a,b) = 3;
-%                 imagesc(trajmap);
-%                 drawnow;
-                 
+                %                 imagesc(trajmap);
+                %                 drawnow;
+                
                 x = pose(1);
                 y = pose(2);
                 theta = pose(3);
@@ -454,7 +388,7 @@ while true,
                     gamma = -theta+atan2((y_star - y),(x_star - x));
                     forwBackVel = v_star*sin(gamma);
                     leftRightVel = v_star*cos(gamma);
-                    rotVel = alpha*(abs(forwBackVel)+abs(leftRightVel))/2;    
+                    rotVel = alpha*(abs(forwBackVel)+abs(leftRightVel))/2;
                 else
                     index = index + 1;
                     if index == s(1) % Final destination reached
@@ -462,9 +396,208 @@ while true,
                         forwBackVel = 0;
                         leftRightVel = 0;
                         rotVel = 0;
+                        fsm = 'check corner';
+                        startChecking = true;
                     end
                 end
             end
+        end
+        
+    elseif strcmp(fsm, 'check corner')
+        if startChecking
+            temp_map = ones(64,64);
+            temp_map(3:62,3:62) = map;
+            temp_map(temp_map == -1) = 1;
+%             figure
+%             imagesc(temp_map)
+%             drawnow;
+            corners = corner(temp_map,'QualityLevel',0.3,'SensitivityFactor', 0.09);
+            
+            temp_map2 = temp_map;
+            for i = 1:length(corners(:,1))
+                temp_map2(corners(i,2),corners(i,1)) = 10;
+            end
+            figure
+            imagesc(temp_map2)
+            drawnow;
+            
+            %Selects the 4 nearest corner
+            shortest_corner_dist = [100;100;100];
+            corner_index = [0 0; 0 0; 0 0];
+            j = 1;
+            for i = 1:length(corners(:,1))
+                
+                display(corners(i,2))
+                display(corners(i,1))
+                
+                corner_dist = sqrt((corners(i,1)-b+2)^2+(corners(i,2)-a+2)^2);
+                % Reminder: a & b are the  previously calculated indices of the
+                % youbot's position on the map
+                
+                [max_dist, max_ind] = max(shortest_corner_dist)
+                if corner_dist < max_dist
+                    
+                    % Check if it is a valid location for a basket, it will be
+                    % if there is at most 3 free cells surrounding it
+                    surrounding_cells = zeros(8,3);
+                    surrounding_cells(1,:) = [corners(i,2)+1  corners(i,1)    temp_map(corners(i,2)+1,corners(i,1))];
+                    surrounding_cells(2,:) = [corners(i,2)    corners(i,1)+1  temp_map(corners(i,2),corners(i,1)+1)];
+                    surrounding_cells(3,:) = [corners(i,2)+1  corners(i,1)+1  temp_map(corners(i,2)+1,corners(i,1)+1)];
+                    surrounding_cells(4,:) = [corners(i,2)-1  corners(i,1)-1  temp_map(corners(i,2)-1,corners(i,1)-1)];
+                    surrounding_cells(5,:) = [corners(i,2)-1  corners(i,1)    temp_map(corners(i,2)-1,corners(i,1))];
+                    surrounding_cells(6,:) = [corners(i,2)    corners(i,1)-1  temp_map(corners(i,2),corners(i,1)-1)];
+                    surrounding_cells(7,:) = [corners(i,2)-1  corners(i,1)+1  temp_map(corners(i,2)-1,corners(i,1)+1)];
+                    surrounding_cells(8,:) = [corners(i,2)+1  corners(i,1)-1  temp_map(corners(i,2)+1,corners(i,1)-1)];
+                    surrounding_cells(:,3)
+                    nb_obstacle_cells = sum(surrounding_cells(:,3))
+                    
+                    if 1 <= 8-nb_obstacle_cells && 8-nb_obstacle_cells <= 4 % valid possible basket location
+                        shortest_corner_dist(max_ind) = corner_dist
+                        if temp_map(corners(i,2),corners(i,1)) == 0
+                            corner_index(max_ind,:) = [corners(i,2) corners(i,1)]
+                        else % corner point is an obstacle -> select a free point next to it
+                            row = find(surrounding_cells(:,3)==0)
+                            corner_index(max_ind,:) = surrounding_cells(row(1),1:2)
+                        end
+                        
+                        % Check if the corner hasn't been checked yet
+                        cornerPos = corner_index(max_ind,:)*cell_size-cell_size/2-d+2*cell_size;
+                        ic = 1;
+                        while visitedCorners(ic,1) ~= 0
+                            if sqrt((visitedCorners(ic,1)-cornerPos(1))^2+(visitedCorners(ic,2)-cornerPos(2))^2) < 0.6
+                                corner_index(max_ind,:) = [0 0]
+                                shortest_corner_dist(max_ind) = 100;
+                                break;
+                            end
+                            ic = ic+1;
+                        end    
+                    end
+                end
+            end
+            corner_num = 1;
+            init_corner_traj = true;
+        end
+        
+        if init_corner_traj
+            if corner_index(corner_num,1) ~= 0
+                traj = calc_traj(temp_map, youbotPos, corner_index(corner_num,:), cell_size, d+2*cell_size, true, false, fill_point+3);
+                s = size(traj);
+                if s(1) > 1
+                    traj = smooth_traj(traj);
+                    s = size(traj);
+                end
+                index = 1;
+                traj_timer = tic;
+                prev_t = 0;
+                prev_e = 0.4;
+                startChecking = false;
+                needToCheck = true;
+            else
+                needToCheck = false;
+                corner_num = corner_num + 1;
+                if corner_num == 4
+                    fsm = 'exploration';
+                end
+            end
+            if s == 0 % if the youbot happens to be already in the corner
+                fsm = 'Identify basket';
+                needToCheck = false;
+            end
+            init_corner_traj = false;
+        end
+        
+        if needToCheck
+            x = youbotPos(1);
+            y = youbotPos(2);
+            theta = youbotEuler(3);
+            
+            x_star = traj(index,1);
+            y_star = traj(index,2);
+            theta_star = atan2((y_star - y),(x_star - x))+pi/2;
+            
+            t = toc(traj_timer);
+            e = sqrt((x_star-x)^2+(y_star-y)^2)-d_star;
+            if e > 0.01
+                v_star = 20*e + 30*(abs(t-prev_t)*abs(e-prev_e)/2);
+                alpha = angdiff(theta_star, theta);
+                gamma = -theta+atan2((y_star - y),(x_star - x));
+                forwBackVel = v_star*sin(gamma);
+                leftRightVel = v_star*cos(gamma);
+                rotVel = alpha*(abs(forwBackVel)+abs(leftRightVel))/2;
+                
+            else
+                index = index + 1;
+                if index > s(1)
+                    fsm = 'Identify basket';
+                    forwBackVel = 0;
+                    leftRightVel = 0;
+                    rotVel = 0;
+                end
+            end   
+        end
+        
+    elseif strcmp(fsm, 'Identify basket')
+        
+        [pts, contacts] = youbot_hokuyo(vrep, h, vrep.simx_opmode_buffer);
+        x_pts = pts(1,contacts); 
+        y_pts = pts(2,contacts);
+        
+        ransac_failed = true;
+        while ransac_failed
+            ransac_failed = false;
+            try
+                [results, options] = RANSAC([x_pts;y_pts], table_options);
+            catch e
+                display(e)
+                ransac_failed = true;
+            end
+        end
+        corner_center_defined = false;
+        if length(results.Theta)>0 
+            figure;
+            hold on
+            plot(x_pts, y_pts, '+r');
+            plot(x_pts(results.CS), y_pts(results.CS), 'sg');
+            xlabel('x');
+            ylabel('y');
+            axis equal tight
+            grid on
+            
+            phi = linspace(-pi,pi,128);
+            
+            x_c = results.Theta(1) + 0.4*cos(phi);
+            y_c = results.Theta(2) + 0.4*sin(phi);
+            plot([x_c x_c(1)], [y_c y_c(1)], 'g', 'LineWidth', 2)
+            
+            if sum(results.CS) > 100
+                corner_center = results.Theta;
+                corner_center_defined = true;
+                % Convert the coordinates from the frame of the youbot to the
+                % main frame
+                [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1,...
+                    vrep.simx_opmode_oneshot_wait);
+                vrchk(vrep, res, true);
+                [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1,...
+                    vrep.simx_opmode_oneshot_wait);
+                vrchk(vrep, res, true);
+                T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
+                corner_center = homtrans(T,corner_center')';
+            end
+        end
+        
+        if not(corner_center_defined)
+            corner_center = corner_index(corner_num,:)*cell_size-cell_size/2-d+2*cell_size;
+        end
+          
+        % Add the visited corner to the list
+        iv = find(visitedCorners(:,1)==0,1,'first');
+        visitedCorners(iv,:) = corner_center
+        
+        fsm = 'check corner';
+        init_corner_traj = true;
+        corner_num = corner_num + 1;
+        if corner_num == 4
+            fsm = 'exploration';
         end
         
     elseif strcmp(fsm, 'go to table/basket')
@@ -489,7 +622,7 @@ while true,
                 destIsObstacle = false;
                 try
                     dest = [circle_zone(1,zone_index) circle_zone(2,zone_index)];
-                    traj = calc_traj(map, youbotPos, dest, cell_size, d);
+                    traj = calc_traj(map, youbotPos, dest, cell_size, d, true, true, fill_point);
                 catch
                     destIsObstacle = true;
                     if zone_index == n_table_zone

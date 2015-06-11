@@ -1,8 +1,4 @@
-function hokuyoSamples = youbot_B1D2()
-hs = 1;
-hokuyoSamples(hs) = struct('x_pts',[],'y_pts',[]); 
-
-
+function youbot_B1D2()
 % This function controls the youbot to create a map of the
 % environnement where it will evolve, and then to pick up objects on tables
 % and put them into the appropriate baskests according to the given
@@ -123,12 +119,13 @@ table_options.mode = 'MSAC';
 table_options.Ps = [];
 table_options.notify_iters = [];
 table_options.min_iters = 100;
-table_options.max_iters = 2000;
+table_options.max_iters = 4100;
 table_options.fix_seed = false;
 table_options.reestimate = true;
 table_options.stabilize = false;
+table_options.verbose = false;
 table_options.T_noise_squared = 0.01;
-table_options.parameters.radius = d_table/2-0.017;
+table_options.parameters.radius = d_table/2-0.01;
 
 
 % set RANSAC options for cylinder recognition
@@ -446,7 +443,6 @@ while true,
             %Selects the 4 nearest corner
             shortest_corner_dist = [100;100;100;100];
             corner_index = [0 0; 0 0; 0 0; 0 0];
-            j = 1;
             for i = 1:length(corners(:,1))
                 
                 display(corners(i,2))
@@ -496,7 +492,7 @@ while true,
                         cornerPos = corner_index(max_ind,:)*cell_size-cell_size/2-(d+2*cell_size);
                         ic = 1;
                         while visitedCorners(ic,1) ~= 0
-                            if sqrt((visitedCorners(ic,1)-cornerPos(1))^2+(visitedCorners(ic,2)-cornerPos(2))^2) < d_table+0.15
+                            if sqrt((visitedCorners(ic,1)-cornerPos(1))^2+(visitedCorners(ic,2)-cornerPos(2))^2) < d_table+0.1
                                 corner_index(max_ind,:) = [0 0]
                                 shortest_corner_dist(max_ind) = 100;
                                 break;
@@ -507,7 +503,6 @@ while true,
                 end
             end
             if sum(corner_index(:,1)) == 0 % No more corners to check
-                break
                 fsm = 'go to table/basket';
                 init_corner_traj = false;
                 needToCheck = false;
@@ -654,9 +649,6 @@ while true,
         x_pts = pts(1,contacts); 
         y_pts = pts(2,contacts);
         
-        hokuyoSamples(hs) = struct('x_pts',x_pts,'y_pts',y_pts);
-        hs  = hs+1;
-        
         ransac_failed = true;
         while ransac_failed
             ransac_failed = false;
@@ -684,19 +676,39 @@ while true,
             y_c = results.Theta(2) + 0.4*sin(phi);
             plot([x_c x_c(1)], [y_c y_c(1)], 'g', 'LineWidth', 2)
             
-            if sum(results.CS) > 80
-                corner_center = results.Theta;
-                corner_center_defined = true;
-                % Convert the coordinates from the frame of the youbot to the
-                % main frame
-%                 [res, youbotPos] = vrep.simxGetObjectPosition(id, h.ref, -1,...
-%                     vrep.simx_opmode_oneshot_wait);
-%                 vrchk(vrep, res, true);
-%                 [res, youbotEuler] = vrep.simxGetObjectOrientation(id, h.ref, -1,...
-%                     vrep.simx_opmode_oneshot_wait);
-%                 vrchk(vrep, res, true);
-                T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
-                corner_center = homtrans(T,corner_center')'
+            if sum(results.CS) > 50
+                
+                % Even if we have enough inliers points, ransac sometimes
+                % match parts of  the walls in a circle, and to discard
+                % this match, we can calculate the mean coordinates of the
+                % inlier points, and if there really is a basket in that 
+                % corner, this mean point will be closer to the youbot than
+                % the center of the detected circle
+                mx = mean(x_pts(results.CS));
+                my = mean(y_pts(results.CS));
+                plot(mx, my, '*m');
+                
+                dist_origin_center = sqrt((results.Theta(1))^2+(results.Theta(2))^2);
+                dist_origin_mean = sqrt((mx)^2+(my)^2);
+                
+                if dist_origin_center > dist_origin_mean % The match is basket
+                    corner_center = results.Theta;
+                    corner_center_defined = true;
+                    % Convert the coordinates from the frame of the youbot to the
+                    % main frame
+                    T = se2(youbotPos(1), youbotPos(2), youbotEuler(3));
+                    corner_center = homtrans(T,corner_center')'
+                                        
+                    title('BASKET FOUND!!!')
+                    %MOMBI c'est ici que faut que tu insère la
+                    %reconnaissance d'image et le stockage des données du
+                    %panier ds la structure appropriée, cfr structure que 
+                    %j'ai faite temporairement au debut du fichier avec les 
+                    %données que j'avais fixées pour mes tests, et comment
+                    %je l'utilise ds la  partie 'identify object' lignes
+                    %1070 à 1160
+     
+                end
             end
         end
         

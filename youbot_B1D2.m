@@ -707,7 +707,8 @@ while true,
                     %données que j'avais fixées pour mes tests, et comment
                     %je l'utilise ds la  partie 'identify object' lignes
                     %1070 à 1160
-     
+                    %ATTENTION le mm panier est parfois detecté
+                    %plusieurs fois, dc faut gérer ce cas la
                 end
             end
         end
